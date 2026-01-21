@@ -1,5 +1,5 @@
 
-import { Property, Transaction, PropertyDocument } from '../types';
+import { Property, Transaction, PropertyDocument, Company } from '../types';
 
 // Initial Mock Data
 const INITIAL_PROPERTIES: Property[] = [
@@ -100,6 +100,7 @@ const INITIAL_TRANSACTIONS: Transaction[] = [
 class DataService {
   private properties: Property[] = INITIAL_PROPERTIES;
   private transactions: Transaction[] = INITIAL_TRANSACTIONS;
+  private companies: Company[] = JSON.parse(localStorage.getItem('user_companies') || '[]');
 
   getProperties(): Promise<Property[]> {
     return Promise.resolve([...this.properties]);
@@ -132,6 +133,28 @@ class DataService {
 
   deleteTransaction(id: string): Promise<void> {
     this.transactions = this.transactions.filter(t => t.id !== id);
+    return Promise.resolve();
+  }
+
+  // Company Methods
+  getCompanies(): Promise<Company[]> {
+    return Promise.resolve([...this.companies]);
+  }
+
+  saveCompany(company: Company): Promise<Company> {
+    const index = this.companies.findIndex(c => c.id === company.id);
+    if (index !== -1) {
+      this.companies[index] = company;
+    } else {
+      this.companies.push(company);
+    }
+    localStorage.setItem('user_companies', JSON.stringify(this.companies));
+    return Promise.resolve(company);
+  }
+
+  deleteCompany(id: string): Promise<void> {
+    this.companies = this.companies.filter(c => c.id !== id);
+    localStorage.setItem('user_companies', JSON.stringify(this.companies));
     return Promise.resolve();
   }
 

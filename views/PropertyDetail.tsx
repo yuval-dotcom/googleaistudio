@@ -1,10 +1,10 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Property, Language, Transaction, PropertyDocument } from '../types';
+import { Property, Language, Transaction, PropertyDocument, PropertyUnit } from '../types';
 import { currencyService } from '../services/currencyService';
-import { ArrowLeft, ArrowUpRight, ArrowDownRight, FileText, Loader2, ExternalLink, Trash2, X, Upload, Pencil, AlertCircle } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { ArrowLeft, ArrowUpRight, ArrowDownRight, FileText, Loader2, ExternalLink, Trash2, X, Upload, Pencil, AlertCircle, Layers, User, CreditCard, History, Users, Plus } from 'lucide-react';
 import { t } from '../services/translationService';
+import { Card } from '../components/Card';
 
 interface PropertyDetailProps {
   property: Property;
@@ -12,7 +12,7 @@ interface PropertyDetailProps {
   lang: Language;
   onEdit?: () => void;
   onUpdate?: (updatedProperty: Property) => void; 
-  service: any; // Dynamic service (Supabase or Mock)
+  service: any;
 }
 
 type Tab = 'overview' | 'financials' | 'partners' | 'docs' | 'transactions';
@@ -23,124 +23,101 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
   const [localProperty, setLocalProperty] = useState<Property>(property);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [isLoadingTxs, setIsLoadingTxs] = useState(false);
-  
-  // States for deletions
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  
   const [docError, setDocError] = useState<string | null>(null);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setLocalProperty(property);
-  }, [property]);
-
-  useEffect(() => {
+  useEffect(() => { 
+    setLocalProperty(property); 
     if (activeTab === 'transactions') {
-      loadTransactions();
+      fetchTransactions();
     }
-  }, [activeTab]);
+    if (activeTab === 'docs') {
+      refreshSignedUrls();
+    }
+  }, [property, activeTab]);
 
-  const loadTransactions = async () => {
+  const refreshSignedUrls = async () => {
+    const docs = localProperty.documents || [];
+    if (docs.length === 0) return;
+
+    docs.forEach(async (doc) => {
+      if (!doc.path || signedUrls[doc.id]) return;
+      
+      setLoadingUrls(prev => ({ ...prev, [doc.id]: true }));
+      try {
+        const url = await service.getSignedUrl(doc.path);
+        setSignedUrls(prev => ({ ...prev, [doc.id]: url }));
+      } catch (e) {
+        console.error(`Failed to sign URL for ${doc.name}`, e);
+      } finally {
+        setLoadingUrls(prev => ({ ...prev, [doc.id]: false }));
+      }
+    });
+  };
+
+  const fetchTransactions = async () => {
     setIsLoadingTxs(true);
     try {
-      const allTxs = await service.getTransactions();
-      const filtered = allTxs.filter((tx: Transaction) => tx.propertyId === localProperty.id);
+      const all = await service.getTransactions();
+      const filtered = all.filter((tx: Transaction) => tx.propertyId === property.id);
       setTransactions(filtered);
-    } catch (err) {
-      console.error("Failed to load txs", err);
+    } catch (e) {
+      console.error("Failed to fetch transactions", e);
     } finally {
       setIsLoadingTxs(false);
     }
   };
 
-  const mixData = property.mortgageMix ? [
-    { name: t('fixed', lang), value: property.mortgageMix.fixedPercent, color: '#10B981' }, 
-    { name: t('variable', lang), value: property.mortgageMix.variablePercent, color: '#F59E0B' }, 
-    { name: t('prime', lang), value: property.mortgageMix.primePercent, color: '#3B82F6' },
-  ].filter(d => d.value > 0) : [];
-
-  const handleFileClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     setDocError(null);
     try {
-      const newDoc = await service.uploadFile(file, localProperty.id);
+      const newDoc = await service.uploadFile(file, property.id);
+      
+      // Immediately get a signed URL for the new file
+      if (newDoc.path) {
+        const url = await service.getSignedUrl(newDoc.path);
+        setSignedUrls(prev => ({ ...prev, [newDoc.id]: url }));
+      }
+
       const updatedDocs = [...(localProperty.documents || []), newDoc];
       const updatedProperty = { ...localProperty, documents: updatedDocs };
       
       await service.updateProperty(updatedProperty);
-      
       setLocalProperty(updatedProperty);
       if (onUpdate) onUpdate(updatedProperty);
-
     } catch (err: any) {
-      console.error("[PropertyDetail] Upload Failed:", err);
-      setDocError("Upload failed: " + (err.message || "Unknown error"));
+      setDocError(err.message || "Upload failed. Ensure the bucket is created in Supabase.");
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
-  const handleDeleteDoc = async (doc: PropertyDocument, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault(); 
-    
-    if (confirmDeleteId !== doc.id) {
-      setConfirmDeleteId(doc.id);
-      setDocError(null);
-      setTimeout(() => setConfirmDeleteId(current => current === doc.id ? null : current), 3000);
-      return;
-    }
-
+  const deleteDoc = async (doc: PropertyDocument) => {
     setDeletingId(doc.id);
-    setConfirmDeleteId(null);
-
-    const originalDocs = localProperty.documents || [];
-    const updatedDocs = originalDocs.filter(d => d.id !== doc.id);
-    const updatedProperty = { ...localProperty, documents: updatedDocs };
-
     try {
       await service.deleteStorageFile(doc);
+      const updatedDocs = (localProperty.documents || []).filter(d => d.id !== doc.id);
+      const updatedProperty = { ...localProperty, documents: updatedDocs };
       await service.updateProperty(updatedProperty);
       setLocalProperty(updatedProperty);
       if (onUpdate) onUpdate(updatedProperty);
-    } catch (err: any) {
-      console.error("[PropertyDetail] Delete Failed:", err);
-      setDocError("Delete Error: " + (err.message || "Check storage permissions."));
+    } catch (e) {
+      console.error("Delete failed", e);
     } finally {
       setDeletingId(null);
     }
   };
 
-  const handleDeleteTx = async (txId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (confirmDeleteId !== txId) {
-      setConfirmDeleteId(txId);
-      setTimeout(() => setConfirmDeleteId(current => current === txId ? null : current), 3000);
-      return;
-    }
-
-    setDeletingId(txId);
-    setConfirmDeleteId(null);
-
-    try {
-      await service.deleteTransaction(txId);
-      setTransactions(prev => prev.filter(t => t.id !== txId));
-    } catch (err: any) {
-      console.error("Failed to delete transaction", err);
-      alert("Failed to delete transaction.");
-    } finally {
-      setDeletingId(null);
-    }
-  };
+  const totalMonthlyRent = localProperty.units && localProperty.units.length > 0
+    ? localProperty.units.reduce((sum, u) => sum + (u.lease?.monthlyRent || 0), 0)
+    : (localProperty.lease?.monthlyRent || 0);
 
   const renderContent = () => {
     switch (activeTab) {
@@ -148,170 +125,225 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
         return (
           <div className="space-y-4 animate-fade-in">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-3">{t('lease_expires', lang)}</h3>
-              {property.lease ? (
-                 <div className="flex justify-between items-center">
-                    <div>
-                      <p className="text-sm font-semibold">{new Date(property.lease.expirationDate).toLocaleDateString()}</p>
-                      <p className="text-xs text-gray-500">{t('tenant', lang)}: {property.lease.tenantName}</p>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="font-bold text-gray-800">{localProperty.units && localProperty.units.length > 0 ? 'Sub-Units & Tenants' : 'Lease Info'}</h3>
+                <div className="text-right">
+                   <p className="font-bold text-brand-600 leading-none">{currencyService.format(totalMonthlyRent, localProperty.currency)}</p>
+                   <p className="text-[9px] text-gray-400 uppercase font-black">Total Rent</p>
+                </div>
+              </div>
+
+              {localProperty.units && localProperty.units.length > 0 ? (
+                <div className="space-y-3">
+                  {localProperty.units.map((unit) => (
+                    <div key={unit.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100 flex justify-between items-center">
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-brand-600 shadow-sm border border-gray-100">
+                             <Layers size={16} />
+                          </div>
+                          <div>
+                             <p className="text-xs font-bold text-gray-900">{unit.name}</p>
+                             <div className="flex items-center gap-1 text-[10px] text-gray-500">
+                                <User size={10} /> {unit.lease?.tenantName || 'Vacant'}
+                             </div>
+                          </div>
+                       </div>
+                       <div className="text-right">
+                          <p className="text-xs font-bold text-gray-800">{currencyService.format(unit.lease?.monthlyRent || 0, localProperty.currency)}</p>
+                          <p className="text-[9px] text-gray-400">{unit.lease ? new Date(unit.lease.expirationDate).toLocaleDateString() : '-'}</p>
+                       </div>
                     </div>
-                    <div className="text-right">
-                       <p className="font-bold text-brand-600">{currencyService.format(property.lease.monthlyRent, property.currency)}</p>
-                       <p className="text-[10px] text-gray-400 uppercase">{t('monthly_rent', lang)}</p>
-                    </div>
-                 </div>
+                  ))}
+                </div>
+              ) : localProperty.lease ? (
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                   <div>
+                     <p className="text-sm font-semibold">{localProperty.lease.tenantName}</p>
+                     <p className="text-xs text-gray-500">Expires: {new Date(localProperty.lease.expirationDate).toLocaleDateString()}</p>
+                   </div>
+                   <div className="text-right">
+                     <p className="text-sm font-bold text-gray-800">{currencyService.format(localProperty.lease.monthlyRent, localProperty.currency)}</p>
+                     <p className="text-[10px] text-gray-400">Monthly</p>
+                   </div>
+                </div>
               ) : (
                 <p className="text-gray-400 text-sm italic">No lease active</p>
               )}
             </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+
+            <Card className="p-4">
               <h3 className="font-bold text-gray-800 mb-2">{t('address', lang)}</h3>
-              <p className="text-gray-600">{property.address}, {property.country}</p>
-              <div className="mt-2 inline-block px-2 py-1 bg-gray-100 rounded text-xs text-gray-600">
-                {property.type || 'Residential'}
+              <p className="text-gray-600 text-sm">{localProperty.address}, {localProperty.country}</p>
+              <div className="mt-2 inline-block px-2 py-1 bg-gray-100 rounded text-[10px] font-bold text-gray-500 uppercase tracking-wide">
+                {localProperty.type}
               </div>
-            </div>
-             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="font-bold text-gray-800 mb-2">Valuation</h3>
-              <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Purchase Price:</span>
-                <span className="font-medium">{currencyService.format(property.purchasePrice, property.currency)}</span>
-              </div>
-              <div className="flex justify-between text-sm mt-1">
-                <span className="text-gray-500">Market Value:</span>
-                <span className="font-bold text-brand-600">{currencyService.format(property.marketValue, property.currency)}</span>
-              </div>
-            </div>
+            </Card>
           </div>
         );
+
       case 'financials':
         return (
           <div className="space-y-4 animate-fade-in">
-             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                <h3 className="font-bold text-gray-800 mb-4">{t('mortgage_mix', lang)}</h3>
-                {mixData.length > 0 ? (
-                  <div className="h-48 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={mixData} cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={5} dataKey="value">
-                          {mixData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                        <Legend iconSize={8} wrapperStyle={{ fontSize: '10px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                ) : (
-                  <p className="text-center text-gray-400 text-sm py-10">No Mortgage Data</p>
-                )}
-                {property.bankName && (
-                  <div className="mt-2 text-center text-xs text-gray-500 font-medium bg-gray-50 p-2 rounded">
-                    Lender: {property.bankName}
-                  </div>
-                )}
+            <Card className="bg-brand-600 text-white border-none">
+              <p className="text-[10px] font-black uppercase opacity-70 mb-1">Estimated ROI (Cap Rate)</p>
+              <div className="flex items-end gap-2">
+                <span className="text-4xl font-black">
+                  {localProperty.marketValue > 0 ? ((totalMonthlyRent * 12 / localProperty.marketValue) * 100).toFixed(1) : '0.0'}%
+                </span>
+                <ArrowUpRight size={20} className="mb-1" />
+              </div>
+            </Card>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Monthly Mortgage</p>
+                <p className="text-lg font-bold text-red-600">{currencyService.format(localProperty.monthlyMortgage || 0, localProperty.currency)}</p>
+              </div>
+              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Loan Balance</p>
+                <p className="text-lg font-bold text-gray-800">{currencyService.format(localProperty.loanBalance || 0, localProperty.currency)}</p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'partners':
+        return (
+          <div className="space-y-4 animate-fade-in">
+             <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
+                <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Users size={16} /> Ownership Structure</h3>
+                <div className="space-y-3">
+                  {(localProperty.partners || [{uid: 'me', name: 'Me (Sole Owner)', percentage: 100, hasAccess: true}]).map((p, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                       <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-gray-200 text-gray-400">
+                             <User size={16} />
+                          </div>
+                          <span className="text-sm font-bold text-gray-700">{p.name}</span>
+                       </div>
+                       <span className="text-sm font-black text-brand-600">{p.percentage}%</span>
+                    </div>
+                  ))}
+                </div>
              </div>
           </div>
         );
-      case 'partners':
-        return (
-           <div className="space-y-3 animate-fade-in">
-             {property.partners?.map((p, idx) => (
-               <div key={idx} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center font-bold text-xs">
-                      {p.name.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="font-bold text-sm text-gray-900">{p.name}</p>
-                      <p className="text-[10px] text-gray-400">{p.uid === property.userId ? 'Owner' : 'Investor'}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="font-bold text-gray-800">{p.percentage}%</span>
-                  </div>
-               </div>
-             ))}
-           </div>
-        );
+
       case 'docs':
         return (
-          <div className="animate-fade-in space-y-4">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-dashed border-gray-300 text-center">
-               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf" />
-               {isUploading ? (
-                 <div className="flex flex-col items-center justify-center py-4">
-                    <Loader2 className="animate-spin text-brand-600 mb-2" size={32} />
-                    <span className="text-sm text-gray-500">Uploading...</span>
-                 </div>
-               ) : (
-                 <div onClick={handleFileClick} className="cursor-pointer group">
-                    <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-brand-50 transition-colors">
-                      <Upload className="text-gray-400 group-hover:text-brand-600" size={24} />
-                    </div>
-                    <h4 className="font-bold text-gray-800 text-sm">Upload Document</h4>
-                 </div>
-               )}
+          <div className="space-y-4 animate-fade-in">
+            <div className="flex justify-between items-center mb-2">
+               <h3 className="font-bold text-gray-800 flex items-center gap-2"><FileText size={18} /> Documents</h3>
+               <button 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+                className="text-xs font-bold text-brand-600 flex items-center gap-1 bg-brand-50 px-3 py-1.5 rounded-full active:scale-95 transition-all"
+               >
+                 {isUploading ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+                 <span>Upload</span>
+               </button>
+               <input ref={fileInputRef} type="file" className="hidden" onChange={handleUpload} />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-               {localProperty.documents?.map((doc) => (
-                 <div key={doc.id} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden relative group">
-                    <a href={doc.url} target="_blank" rel="noreferrer" className="block aspect-square bg-gray-50 flex items-center justify-center relative overflow-hidden">
-                       {doc.type === 'image' ? <img src={doc.url} className="w-full h-full object-cover" /> : <FileText size={32} className="text-gray-400" />}
-                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <ExternalLink className="text-white" size={24} />
-                       </div>
-                    </a>
-                    <div className="p-2 flex items-start justify-between gap-2 bg-white">
-                       <div className="min-w-0 flex-1">
-                           <p className="text-xs font-semibold text-gray-800 truncate">{doc.name}</p>
-                           <p className="text-[10px] text-gray-400">{new Date(doc.uploadedAt).toLocaleDateString()}</p>
-                       </div>
-                       <button onClick={(e) => handleDeleteDoc(doc, e)} className={`p-2 rounded-lg transition-all ${confirmDeleteId === doc.id ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-red-600'}`}>
-                         {deletingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : confirmDeleteId === doc.id ? <span className="text-[8px] font-bold">CONFIRM</span> : <Trash2 size={16} />}
-                       </button>
+
+            {docError && (
+              <div className="p-3 bg-red-50 text-red-600 rounded-lg text-xs flex items-center gap-2 border border-red-100">
+                <AlertCircle size={14} /> <span>{docError}</span>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {(localProperty.documents || []).length === 0 ? (
+                <div className="text-center py-10 opacity-30">
+                  <FileText size={48} className="mx-auto mb-2" />
+                  <p className="text-xs font-bold uppercase tracking-widest">No documents yet</p>
+                </div>
+              ) : (
+                localProperty.documents?.map(doc => {
+                  const isLinkLoading = loadingUrls[doc.id];
+                  const docUrl = signedUrls[doc.id] || doc.url;
+
+                  return (
+                    <div key={doc.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex items-center justify-between group">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400">
+                          <FileText size={20} />
+                        </div>
+                        <div className="max-w-[150px]">
+                          <p className="text-xs font-bold text-gray-900 truncate">{doc.name}</p>
+                          <p className="text-[10px] text-gray-400">{new Date(doc.uploadedAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {isLinkLoading ? (
+                          <div className="p-2"><Loader2 size={16} className="animate-spin text-gray-300" /></div>
+                        ) : (
+                          <a 
+                            href={docUrl} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className={`p-2 rounded-lg transition-colors ${docUrl ? 'text-gray-400 hover:text-brand-600 hover:bg-brand-50' : 'text-gray-200 cursor-not-allowed'}`}
+                          >
+                            <ExternalLink size={16} />
+                          </a>
+                        )}
+                        <button 
+                          onClick={() => deleteDoc(doc)}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          {deletingId === doc.id ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                        </button>
+                      </div>
                     </div>
-                 </div>
-               ))}
+                  );
+                })
+              )}
+            </div>
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-100 flex gap-2">
+               <AlertCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
+               <p className="text-[10px] text-blue-600 leading-tight">Your documents are stored in a private secure bucket. View links expire after 1 hour for your safety.</p>
             </div>
           </div>
         );
+
       case 'transactions':
         return (
-          <div className="animate-fade-in space-y-3">
+          <div className="space-y-4 animate-fade-in">
+             <div className="flex justify-between items-center mb-2">
+                <h3 className="font-bold text-gray-800 flex items-center gap-2"><History size={18} /> Property Ledger</h3>
+                <span className="text-[10px] font-black text-gray-400 uppercase">{transactions.length} items</span>
+             </div>
+
              {isLoadingTxs ? (
-               <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-brand-500" /></div>
+               <div className="flex justify-center py-10"><Loader2 className="animate-spin text-brand-600" /></div>
              ) : transactions.length === 0 ? (
-               <p className="text-center text-gray-400 text-sm py-10 italic">No transactions recorded for this property.</p>
+               <div className="text-center py-10 opacity-30">
+                 <CreditCard size={48} className="mx-auto mb-2" />
+                 <p className="text-xs font-bold uppercase tracking-widest">No transactions recorded</p>
+               </div>
              ) : (
-               transactions.map(tx => (
-                 <div key={tx.id} className="bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex justify-between items-center group">
-                    <div className="flex items-center gap-3">
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center ${tx.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
-                          {tx.type === 'income' ? <ArrowUpRight size={20} /> : <ArrowDownRight size={20} />}
-                       </div>
-                       <div>
-                          <p className="font-bold text-gray-900 text-sm">{tx.category}</p>
-                          <p className="text-[10px] text-gray-400">{new Date(tx.date).toLocaleDateString()}</p>
-                       </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                       <span className={`font-bold text-sm ${tx.type === 'income' ? 'text-green-600' : 'text-gray-900'}`}>
-                          {tx.type === 'income' ? '+' : '-'}{currencyService.format(tx.amount, localProperty.currency)}
-                       </span>
-                       <button 
-                         onClick={(e) => handleDeleteTx(tx.id, e)}
-                         className={`p-2 rounded-lg transition-all ${confirmDeleteId === tx.id ? 'bg-red-600 text-white' : 'text-gray-300 hover:text-red-500 hover:bg-red-50'}`}
-                       >
-                         {deletingId === tx.id ? <Loader2 size={14} className="animate-spin" /> : confirmDeleteId === tx.id ? <span className="text-[8px] font-bold">YES</span> : <Trash2 size={14} />}
-                       </button>
-                    </div>
-                 </div>
-               ))
+               <div className="space-y-2">
+                 {transactions.map(tx => (
+                   <div key={tx.id} className="bg-white p-3 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                         <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tx.type === 'income' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>
+                            {tx.type === 'income' ? <ArrowUpRight size={16} /> : <ArrowDownRight size={16} />}
+                         </div>
+                         <div>
+                            <p className="text-xs font-bold text-gray-900">{tx.category}</p>
+                            <p className="text-[9px] text-gray-400">{new Date(tx.date).toLocaleDateString()}</p>
+                         </div>
+                      </div>
+                      <span className={`text-sm font-black ${tx.type === 'income' ? 'text-green-600' : 'text-red-600'}`}>
+                        {tx.type === 'income' ? '+' : '-'}{currencyService.format(tx.amount, localProperty.currency)}
+                      </span>
+                   </div>
+                 ))}
+               </div>
              )}
           </div>
         );
+
+      default: return null;
     }
   };
 
@@ -319,28 +351,36 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
     <div className="h-full flex flex-col bg-gray-50 pb-32">
        <div className="bg-white p-4 border-b border-gray-200 sticky top-0 z-10 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button onClick={onBack} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full">
-              <ArrowLeft size={20} />
-            </button>
+            <button onClick={onBack} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full"><ArrowLeft size={20} /></button>
             <div>
-              <h1 className="font-bold text-lg leading-none">{property.address}</h1>
-              <span className="text-xs text-gray-500">{property.country}</span>
+              <h1 className="font-bold text-lg leading-none truncate max-w-[200px]">{localProperty.address}</h1>
+              <span className="text-xs text-gray-500">{localProperty.country}</span>
             </div>
           </div>
-          <button onClick={onEdit} className="p-2 text-brand-600 hover:bg-brand-50 rounded-full">
-             <Pencil size={20} />
-          </button>
+          <button onClick={onEdit} className="p-2 text-brand-600 hover:bg-brand-50 rounded-full"><Pencil size={20} /></button>
        </div>
-
-       <div className="flex bg-white border-b border-gray-200 sticky top-[60px] z-10 overflow-x-auto no-scrollbar">
-          <button onClick={() => setActiveTab('overview')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400'}`}>{t('overview', lang)}</button>
-          <button onClick={() => setActiveTab('financials')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold border-b-2 transition-colors ${activeTab === 'financials' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400'}`}>{t('financials', lang)}</button>
-          <button onClick={() => setActiveTab('partners')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold border-b-2 transition-colors ${activeTab === 'partners' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400'}`}>{t('partners', lang)}</button>
-          <button onClick={() => setActiveTab('docs')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold border-b-2 transition-colors ${activeTab === 'docs' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400'}`}>{t('docs', lang)}</button>
-          <button onClick={() => setActiveTab('transactions')} className={`flex-1 min-w-[80px] py-3 text-xs font-bold border-b-2 transition-colors ${activeTab === 'transactions' ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-400'}`}>{t('transactions', lang)}</button>
+       <div className="flex bg-white border-b border-gray-200 sticky top-[60px] z-20 overflow-x-auto no-scrollbar shadow-sm">
+          {[
+            {key: 'overview', label: t('overview', lang)}, 
+            {key: 'financials', label: t('financials', lang)}, 
+            {key: 'partners', label: t('partners', lang)}, 
+            {key: 'docs', label: t('docs', lang)}, 
+            {key: 'transactions', label: t('transactions', lang)}
+          ].map(tab => (
+            <button 
+              key={tab.key} 
+              onClick={() => setActiveTab(tab.key as Tab)} 
+              className={`flex-1 min-w-[80px] py-4 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${
+                activeTab === tab.key 
+                  ? 'border-brand-600 text-brand-600 bg-brand-50/30' 
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
        </div>
-
-       <div className="p-4 flex-1 overflow-y-auto">
+       <div className="p-4 flex-1 overflow-y-auto no-scrollbar">
          {renderContent()}
        </div>
     </div>

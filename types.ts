@@ -4,6 +4,12 @@ export type Language = 'en' | 'he';
 
 export type PropertyType = 'Residential' | 'Commercial' | 'Logistics' | 'Shop';
 
+export interface Company {
+  id: string;
+  name: string;
+  userOwnership: number; // Percentage the user owns of this company (0-100)
+}
+
 export interface Partner {
   uid: string;
   name: string;
@@ -17,6 +23,13 @@ export interface Lease {
   monthlyRent: number;
 }
 
+export interface PropertyUnit {
+  id: string;
+  name: string; // e.g., "Unit A", "Floor 1"
+  size?: number; // sq meters
+  lease?: Lease;
+}
+
 export interface MortgageMix {
   fixedPercent: number;
   variablePercent: number;
@@ -27,37 +40,40 @@ export interface PropertyDocument {
   id: string;
   name: string;
   url: string;
-  path?: string; // NEW: Explicit storage path to ensure reliable deletion
+  path?: string; 
   type: 'image' | 'pdf' | 'other';
   uploadedAt: string;
 }
 
 export interface Property {
   id: string;
-  userId: string; // Owner/Creator
+  userId: string;
   address: string;
-  country: string; // e.g., "USA", "UK"
-  type: PropertyType; // NEW
-  currency: CurrencyCode; // The native currency of the property
-  purchasePrice: number; // In native currency
-  purchasePriceNIS?: number; // The amount paid in NIS at the time of purchase (Cost Basis)
+  country: string;
+  type: PropertyType;
+  currency: CurrencyCode;
+  purchasePrice: number;
+  purchasePriceNIS?: number;
   marketValue: number;
-  incomeTaxRate: number; // percentage
-  propertyTaxRate: number; // percentage
+  incomeTaxRate: number;
+  propertyTaxRate: number;
   
+  // Ownership Entity
+  holdingCompany?: string; // Links to Company Name or ID
+
   // Mortgage Details
-  monthlyMortgage?: number; // Total monthly payment (P&I)
-  mortgageInterestRate?: number; // Annual interest rate percentage
-  loanBalance?: number; // Outstanding principal
-  bankName?: string; // NEW
-  mortgageMix?: MortgageMix; // NEW
+  monthlyMortgage?: number;
+  mortgageInterestRate?: number;
+  loanBalance?: number;
+  bankName?: string;
+  mortgageMix?: MortgageMix;
 
   // Partnership & Legal
-  partners?: Partner[]; // NEW
-  lease?: Lease; // NEW
-  documents?: PropertyDocument[]; // NEW - Uploaded files
+  partners?: Partner[];
+  lease?: Lease; // Main lease (for non-split properties)
+  units?: PropertyUnit[]; // For split commercial properties
+  documents?: PropertyDocument[];
 
-  // Legacy fields kept for compatibility if needed
   capitalGainsRule?: string; 
 }
 
@@ -67,31 +83,16 @@ export interface Transaction {
   id: string;
   userId: string;
   propertyId: string;
-  date: string; // ISO string
+  date: string;
   amount: number;
   type: TransactionType;
-  category: string; // e.g., "Rent", "Maintenance", "Mortgage"
-  receiptUrl?: string; // NEW
-  notes?: string; // NEW
-}
-
-export interface PortfolioMetrics {
-  totalValue: number;
-  monthlyCashFlow: number;
-  totalIncomeLast6Months: number;
-  totalExpenseLast6Months: number;
-}
-
-export interface TaxLiability {
-  propertyId: string;
-  address: string;
-  country: string;
-  netOperatingIncome: number;
-  estimatedTax: number;
+  category: string;
+  receiptUrl?: string;
+  notes?: string;
 }
 
 export enum ViewState {
-  LOGIN = 'login', // NEW
+  LOGIN = 'login',
   HOME = 'home',
   PORTFOLIO = 'portfolio',
   QUICK_ADD = 'quick_add',

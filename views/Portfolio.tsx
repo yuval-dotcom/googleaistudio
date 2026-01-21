@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { Card } from '../components/Card';
 import { Property, Transaction, CurrencyCode, PropertyType, Language, ViewState } from '../types';
-import { Building2, Plus, ArrowRight, Home, MapPin, Layers } from 'lucide-react';
+import { Building2, Plus, ArrowRight, Home, MapPin, Layers, Briefcase } from 'lucide-react';
 import { currencyService } from '../services/currencyService';
 import { t } from '../services/translationService';
 
@@ -23,14 +23,26 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
     ? properties 
     : properties.filter(p => p.type === filterType);
 
-  // FIX: Explicitly set return type to string and return "0.0" instead of 0 to satisfy type requirements in the UI and parseFloat.
   const calculateCapRate = (property: Property): string => {
-    const propTxs = transactions.filter(t => t.propertyId === property.id);
-    const income = propTxs.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-    const expense = propTxs.filter(t => t.type === 'expense' && t.category !== 'Mortgage').reduce((sum, t) => sum + t.amount, 0);
-    const netIncome = income - expense;
+    let projectedAnnualIncome = 0;
+    if (property.units && property.units.length > 0) {
+      projectedAnnualIncome = property.units.reduce((sum, u) => sum + (u.lease?.monthlyRent || 0), 0) * 12;
+    } else if (property.lease) {
+      projectedAnnualIncome = property.lease.monthlyRent * 12;
+    }
+
+    if (projectedAnnualIncome === 0) {
+      const propTxs = transactions.filter(t => t.propertyId === property.id && t.type === 'income');
+      projectedAnnualIncome = propTxs.reduce((sum, t) => sum + t.amount, 0);
+    }
+
+    const propExpenses = transactions.filter(t => t.propertyId === property.id && t.type === 'expense' && t.category !== 'Mortgage');
+    const annualExpenses = propExpenses.reduce((sum, t) => sum + t.amount, 0);
+    
+    const netIncome = projectedAnnualIncome - annualExpenses;
     if (property.marketValue === 0) return "0.0";
-    const capRate = ((netIncome * 12) / property.marketValue) * 100; 
+    
+    const capRate = (netIncome / property.marketValue) * 100; 
     return Math.max(0, capRate).toFixed(1);
   };
 
@@ -68,12 +80,12 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
          ))}
       </div>
 
-      {/* Property List */}
       <div className="space-y-4">
         {filteredProperties.map(property => {
-          const myPartner = property.partners?.find(p => p.uid === 'user1');
+          const myPartner = property.partners?.find(p => p.hasAccess);
           const mySharePct = myPartner ? myPartner.percentage : 100;
           const roi = calculateCapRate(property);
+          const isSplit = property.units && property.units.length > 0;
 
           return (
           <Card key={property.id} className="relative overflow-hidden group border-gray-100" onClick={() => onSelectProperty(property)}>
@@ -82,12 +94,20 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
                 <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-gray-400 group-hover:text-brand-600 group-hover:bg-brand-50 transition-colors">
                   <Home size={24} />
                 </div>
-                <div>
-                  <h3 className="font-bold text-gray-900 text-sm leading-tight mb-0.5">{property.address}</h3>
-                  <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold uppercase tracking-wide">
-                    <span>{getFlag(property.country)} {property.country}</span>
-                    <span className="text-gray-300">•</span>
-                    <span>{property.type}</span>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-gray-900 text-sm leading-tight mb-0.5 truncate">{property.address}</h3>
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5 text-[10px] text-gray-500 font-bold uppercase tracking-wide">
+                      <span>{getFlag(property.country)} {property.country}</span>
+                      <span className="text-gray-300">•</span>
+                      <span>{property.type}</span>
+                    </div>
+                    {property.holdingCompany && (
+                      <div className="flex items-center gap-1 text-[9px] font-black text-brand-600 uppercase tracking-widest bg-brand-50 px-1.5 py-0.5 rounded w-fit">
+                        <Briefcase size={10} />
+                        <span className="truncate max-w-[120px]">{property.holdingCompany}</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -116,19 +136,14 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
                   <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                     <Layers size={10} />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-400">Yield Strategy: {property.type}</span>
+                  <span className="text-[10px] font-bold text-gray-400">
+                    {isSplit ? `${property.units?.length} Commercial Units` : `Single ${property.type}`}
+                  </span>
                </div>
                <ArrowRight size={16} className="text-gray-300 group-hover:text-brand-600 group-hover:translate-x-1 transition-all" />
             </div>
           </Card>
         )})}
-        
-        {filteredProperties.length === 0 && (
-          <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-gray-200">
-            <Building2 className="mx-auto text-gray-200 mb-2" size={48} />
-            <p className="text-sm text-gray-400 font-medium">No properties in this category.</p>
-          </div>
-        )}
       </div>
     </div>
   );
