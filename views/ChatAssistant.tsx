@@ -3,7 +3,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2 } from 'lucide-react';
 import { Language, Property, Transaction } from '../types';
 import { t } from '../services/translationService';
-import { GoogleGenAI } from "@google/genai";
+import { generateStream as aiGenerateStream } from '../services/aiApiService';
+import { getAiConsent, setAiConsent } from '../services/aiConsent';
+import { AiPrivacyGate } from '../components/AiPrivacyGate';
 
 interface Message {
   id: string;
@@ -29,6 +31,8 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ lang, properties, 
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [showAiGate, setShowAiGate] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -37,89 +41,100 @@ export const ChatAssistant: React.FC<ChatAssistantProps> = ({ lang, properties, 
     }
   }, [messages, isTyping]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isTyping) return;
-
-    const userMsg: Message = { id: Date.now().toString(), text: input, sender: 'user' };
+  const doSend = async (messageText: string) => {
+    const userMsg: Message = { id: Date.now().toString(), text: messageText, sender: 'user' };
     setMessages(prev => [...prev, userMsg]);
-    const currentInput = input;
-    setInput('');
     setIsTyping(true);
 
+    const portfolioContext = {
+      propertiesCount: properties.length,
+      properties: properties.map(p => ({
+        address: p.address,
+        country: p.country,
+        type: p.type,
+        value: p.marketValue,
+        currency: p.currency,
+        loan: p.loanBalance,
+        rent: p.lease?.monthlyRent || 0,
+        partners: p.partners?.map(part => `${part.name}: ${part.percentage}%`).join(', ')
+      })),
+      recentTransactions: transactions.slice(0, 10).map(tx => ({
+        date: tx.date,
+        amount: tx.amount,
+        type: tx.type,
+        category: tx.category
+      }))
+    };
+
+    const systemInstruction = `
+You are an expert Real Estate Investment Analyst named "InvestorPro AI".
+You are assisting the user in managing their portfolio.
+Current Language: ${lang === 'he' ? 'Hebrew' : 'English'}.
+Portfolio Data: ${JSON.stringify(portfolioContext)}.
+
+Rules:
+1. Always answer in ${lang === 'he' ? 'Hebrew' : 'English'}.
+2. Be professional, concise, and data-driven.
+3. If asked about ROI or performance, use the provided data to calculate rough estimates if possible.
+4. If data is missing for a specific query, politely state that you don't have that information.
+5. Format your responses with bullet points and clear headings where appropriate.
+    `.trim();
+
+    const botMessageId = (Date.now() + 1).toString();
+    setMessages(prev => [...prev, { id: botMessageId, text: '', sender: 'bot' }]);
+    let fullText = '';
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      
-      // Construct context for Gemini
-      const portfolioContext = {
-        propertiesCount: properties.length,
-        properties: properties.map(p => ({
-          address: p.address,
-          country: p.country,
-          type: p.type,
-          value: p.marketValue,
-          currency: p.currency,
-          loan: p.loanBalance,
-          rent: p.lease?.monthlyRent || 0,
-          partners: p.partners?.map(part => `${part.name}: ${part.percentage}%`).join(', ')
-        })),
-        recentTransactions: transactions.slice(0, 10).map(tx => ({
-          date: tx.date,
-          amount: tx.amount,
-          type: tx.type,
-          category: tx.category
-        }))
-      };
-
-      const systemInstruction = `
-        You are an expert Real Estate Investment Analyst named "InvestorPro AI".
-        You are assisting the user in managing their portfolio.
-        Current Language: ${lang === 'he' ? 'Hebrew' : 'English'}.
-        Portfolio Data: ${JSON.stringify(portfolioContext)}.
-        
-        Rules:
-        1. Always answer in ${lang === 'he' ? 'Hebrew' : 'English'}.
-        2. Be professional, concise, and data-driven.
-        3. If asked about ROI or performance, use the provided data to calculate rough estimates if possible.
-        4. If data is missing for a specific query, politely state that you don't have that information.
-        5. Format your responses with bullet points and clear headings where appropriate.
-      `;
-
-      const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3-flash-preview',
-        contents: currentInput,
-        config: {
-          systemInstruction: systemInstruction,
-          temperature: 0.7,
-        }
-      });
-
-      let botMessageId = (Date.now() + 1).toString();
-      let fullText = "";
-      
-      // Initialize empty bot message for streaming
-      setMessages(prev => [...prev, { id: botMessageId, text: "", sender: 'bot' }]);
-
-      for await (const chunk of responseStream) {
-        const textPart = chunk.text;
-        if (textPart) {
-          fullText += textPart;
+      await aiGenerateStream({
+        prompt: messageText,
+        systemInstruction,
+        lang,
+        onChunk: (text) => {
+          fullText += text;
           setMessages(prev => prev.map(m => m.id === botMessageId ? { ...m, text: fullText } : m));
         }
-      }
-
-    } catch (err: any) {
-      console.error("Gemini Error:", err);
-      const errorMsg = lang === 'en' 
-        ? "I'm sorry, I'm having trouble connecting to my analysis engine right now." 
+      });
+    } catch (err: unknown) {
+      console.error('AI Error:', err);
+      const errorMsg = lang === 'en'
+        ? "I'm sorry, I'm having trouble connecting to my analysis engine right now."
         : "מצטער, אני מתקשה להתחבר למנוע הניתוח שלי כרגע.";
-      setMessages(prev => [...prev, { id: Date.now().toString(), text: errorMsg, sender: 'bot' }]);
+      setMessages(prev => prev.map(m => m.id === botMessageId ? { ...m, text: errorMsg } : m));
     } finally {
       setIsTyping(false);
     }
   };
 
+  const handleSend = () => {
+    const text = input.trim();
+    if (!text || isTyping) return;
+    if (!getAiConsent()) {
+      setPendingMessage(text);
+      setShowAiGate(true);
+      return;
+    }
+    setInput('');
+    doSend(text);
+  };
+
+  const handleAcceptGate = () => {
+    setAiConsent();
+    setShowAiGate(false);
+    if (pendingMessage) {
+      doSend(pendingMessage);
+      setPendingMessage(null);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full pb-32 animate-fade-in bg-white">
+      {showAiGate && (
+        <AiPrivacyGate
+          lang={lang}
+          onAccept={handleAcceptGate}
+          onCancel={() => { setShowAiGate(false); setPendingMessage(null); }}
+        />
+      )}
        <header className="flex-none p-4 border-b border-gray-100 bg-white sticky top-0 z-10">
          <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-brand-50 rounded-xl flex items-center justify-center text-brand-600">

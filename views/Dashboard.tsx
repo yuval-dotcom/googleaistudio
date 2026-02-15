@@ -6,8 +6,10 @@ import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart as RePieCh
 import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity, Globe, Settings, Sparkles, Loader2, RefreshCw, Calendar } from 'lucide-react';
 import { currencyService } from '../services/currencyService';
 import { t } from '../services/translationService';
-import { GoogleGenAI } from "@google/genai";
+import { generate as aiGenerate } from '../services/aiApiService';
 import { notificationService } from '../services/notificationService';
+import { getAiConsent, setAiConsent } from '../services/aiConsent';
+import { AiPrivacyGate } from '../components/AiPrivacyGate';
 
 interface DashboardProps {
   properties: Property[];
@@ -22,6 +24,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, globalCurrency, setGlobalCurrency, lang, setLang, setView }) => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showAiGate, setShowAiGate] = useState(false);
 
   const expiringLeases = useMemo(() => notificationService.getExpiringLeases(properties), [properties]);
 
@@ -89,20 +92,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
 
   const handleGenerateInsight = async () => {
     if (properties.length === 0 || isAnalyzing) return;
+    if (!getAiConsent()) {
+      setShowAiGate(true);
+      return;
+    }
+    doGenerateInsight();
+  };
+
+  const doGenerateInsight = async () => {
+    if (properties.length === 0 || isAnalyzing) return;
     setIsAnalyzing(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Quick tactical summary (max 2 sentences) of this RE portfolio: ${properties.length} properties, ${totalMyEquity} equity, ${monthlyCashFlow} monthly cashflow. Focus on health and next steps. Language: ${lang === 'he' ? 'Hebrew' : 'English'}.`;
-      const result = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: prompt,
-      });
+      const result = await aiGenerate({ prompt, lang });
       setAiInsight(result.text || null);
-    } catch (e) { 
-      console.error(e); 
+    } catch (e) {
+      console.error(e);
       setAiInsight(lang === 'he' ? 'שגיאה בניתוח הנתונים.' : 'Error analyzing data.');
-    } finally { 
-      setIsAnalyzing(false); 
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -110,6 +118,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
 
   return (
     <div className="space-y-5 pb-32 animate-fade-in p-4">
+      {showAiGate && (
+        <AiPrivacyGate
+          lang={lang}
+          onAccept={() => {
+            setAiConsent();
+            setShowAiGate(false);
+            doGenerateInsight();
+          }}
+          onCancel={() => setShowAiGate(false)}
+        />
+      )}
       <header className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('dashboard', lang)}</h1>
