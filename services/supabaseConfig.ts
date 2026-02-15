@@ -1,8 +1,9 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://frbtjnricafnvyqnaotu.supabase.co'; 
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZyYnRqbnJpY2FmbnZ5cW5hb3R1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxMDQyNjksImV4cCI6MjA4MDY4MDI2OX0.wD8a6I4es6g0Ar5J4zo3WM1oXMfyM58uLiqS07hnaoc';
+// Env-only: no hardcoded keys. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 
 const cleanUrl = (url: string) => url ? url.trim() : '';
 const cleanKey = (key: string) => key ? key.trim() : '';
@@ -13,7 +14,7 @@ const getValidUrl = (url: string) => {
     if (!cleaned.startsWith('http')) return 'https://placeholder.supabase.co';
     new URL(cleaned);
     return cleaned;
-  } catch (e) {
+  } catch {
     return 'https://placeholder.supabase.co';
   }
 };

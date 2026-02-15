@@ -16,12 +16,11 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
   const [successMsg, setSuccessMsg] = useState('');
 
   const checkConfig = () => {
-    // @ts-ignore
-    const currentUrl = (supabase as any).supabaseUrl || '';
-    if (currentUrl.includes('placeholder.supabase.co') || currentUrl.includes('YOUR_SUPABASE_URL')) {
-      setError({ 
-        message: "Supabase Not Configured", 
-        detail: "Please open services/supabaseConfig.ts and paste your Project URL and Key." 
+    const currentUrl = (supabase as { supabaseUrl?: string }).supabaseUrl ?? '';
+    if (currentUrl.includes('placeholder.supabase.co') || currentUrl.includes('YOUR_')) {
+      setError({
+        message: 'Supabase Not Configured',
+        detail: 'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (see .env.example).'
       });
       return false;
     }
