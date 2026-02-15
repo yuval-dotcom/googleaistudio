@@ -26,6 +26,9 @@ const dictionary: Dictionary = {
   'analyze_with_ai': { en: 'Analyze Portfolio with AI', he: 'נתח את התיק עם AI' },
   'analyzing': { en: 'Analyzing performance...', he: 'מנתח נתונים...' },
   'ai_warning': { en: 'InvestorPro AI may occasionally provide inaccurate estimates.', he: 'אנליסט ה-AI עשוי לספק הערכות לא מדויקות לעיתים.' },
+  'ai_consent_title': { en: 'AI analysis', he: 'ניתוח AI' },
+  'ai_consent_body': { en: 'Portfolio data will be sent to our server for AI analysis. It is not used for AI training. Do you want to continue?', he: 'נתוני התיק יישלחו לשרת שלנו לניתוח AI. הנתונים לא משמשים לאימון מודלים. להמשיך?' },
+  'i_understand': { en: 'I understand', he: 'אני מבין/ה' },
 
   // Property Actions
   'view_all': { en: 'View All', he: 'הצג הכל' },
