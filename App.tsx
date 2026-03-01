@@ -13,6 +13,8 @@ import { PropertyEditor } from './views/PropertyEditor';
 import { BottomNav } from './components/BottomNav';
 import { supabaseDataService } from './services/supabaseService';
 import { dataService as mockDataService } from './services/mockDataService';
+import { nodeApiDataService } from './services/nodeApiDataService';
+import { getMe, clearToken, setToken } from './services/nodeAuthService';
 import { supabase } from './services/supabaseConfig';
 import { getDir } from './services/translationService';
 import { Loader2, Database, RefreshCcw } from 'lucide-react';
@@ -32,7 +34,7 @@ const App: React.FC = () => {
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
 
-  const activeService = isDemo ? mockDataService : supabaseDataService;
+  const activeService = user?.source === 'node' ? nodeApiDataService : isDemo ? mockDataService : supabaseDataService;
 
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;
@@ -56,25 +58,32 @@ const App: React.FC = () => {
   }, [user, isDemo, activeService]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
+    let unsub: (() => void) | null = null;
+    getMe().then((me) => {
+      if (me) {
+        setUser({ ...me, source: 'node' });
         setView(ViewState.HOME);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          setUser(session.user);
+          setView(ViewState.HOME);
+        }
+        setLoading(false);
+      });
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const currentUser = session?.user ?? null;
+        setUser(currentUser);
+        if (currentUser) {
+          setIsDemo(false);
+          if (view === ViewState.LOGIN) setView(ViewState.HOME);
+        } else if (!isDemo) setView(ViewState.LOGIN);
+      });
+      unsub = () => subscription.unsubscribe();
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        setIsDemo(false);
-        if (view === ViewState.LOGIN) setView(ViewState.HOME);
-      } else if (!isDemo) {
-        setView(ViewState.LOGIN);
-      }
-    });
-    return () => subscription.unsubscribe();
+    return () => { unsub?.(); };
   }, [isDemo]);
 
   useEffect(() => {
@@ -84,6 +93,10 @@ const App: React.FC = () => {
   const handleLogout = async () => {
     if (isDemo) {
       setIsDemo(false);
+      setUser(null);
+      setView(ViewState.LOGIN);
+    } else if (user?.source === 'node') {
+      clearToken();
       setUser(null);
       setView(ViewState.LOGIN);
     } else {
@@ -97,12 +110,30 @@ const App: React.FC = () => {
     if (dbError === 'MISSING_TABLES') return <DatabaseSetupError onRetry={refreshData} />;
     
     if (!user && !isDemo) {
-      return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+      return (
+        <Login
+          onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+          onNodeLogin={(nodeUser, token) => {
+            setToken(token);
+            setUser({ ...nodeUser, source: 'node' });
+            setView(ViewState.HOME);
+          }}
+        />
+      );
     }
 
     switch (view) {
       case ViewState.LOGIN:
-        return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+        return (
+          <Login
+            onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+            onNodeLogin={(nodeUser, token) => {
+              setToken(token);
+              setUser({ ...nodeUser, source: 'node' });
+              setView(ViewState.HOME);
+            }}
+          />
+        );
       case ViewState.HOME:
         return <Dashboard 
           properties={properties} 
@@ -151,9 +182,28 @@ const App: React.FC = () => {
       case ViewState.TAX_REPORT:
         return <TaxReport properties={properties} transactions={transactions} globalCurrency={globalCurrency} lang={lang} />;
       case ViewState.SETTINGS:
-        return <Settings onBack={() => setView(ViewState.HOME)} onLogout={handleLogout} onSave={refreshData} lang={lang} service={activeService} />;
+        return (
+          <Settings
+            onBack={() => setView(ViewState.HOME)}
+            onLogout={handleLogout}
+            onSave={refreshData}
+            lang={lang}
+            service={activeService}
+            showServerLinks={user?.source === 'node'}
+            assetsCount={properties.length}
+          />
+        );
       default:
-        return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+        return (
+          <Login
+            onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+            onNodeLogin={(nodeUser, token) => {
+              setToken(token);
+              setUser({ ...nodeUser, source: 'node' });
+              setView(ViewState.HOME);
+            }}
+          />
+        );
     }
   };
 
