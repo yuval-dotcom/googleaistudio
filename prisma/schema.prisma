@@ -1,0 +1,94 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" 
+  url      = env("DATABASE_URL")
+}
+
+// 0. משתמשים (להתחברות)
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  assets       Asset[]
+}
+
+// 1. טבלת נכסים (הנכס הפיזי או הקרן)
+model Asset {
+  id              String        @id @default(uuid())
+  userId          String?       // בעלות: נכס שייך למשתמש (null = לא משויך)
+  user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  name            String        // שם הנכס (למשל: "מרכז מסחרי רשל״צ")
+  type            String        // סוג: "Commercial", "Residential", "Land", "Fund"
+  purchaseYear    Int?          // שנת קנייה
+  purchasePrice   Float         @default(0) // מחיר קנייה (100%)
+  currentValue    Float         @default(0) // שווי נוכחי (100%)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  ownerships      Ownership[]
+  units           Unit[]
+  loans           Loan[]
+  transactions    Transaction[]
+}
+
+// 2. טבלת החזקות/שותפויות (לניהול החלק היחסי של הקרן ושל שותפים אחרים)
+model Ownership {
+  id              String        @id @default(uuid())
+  assetId         String
+  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  entityName      String        // שם המחזיק (למשל: "קרן טל", "ג.מ אגם")
+  percentage      Float         // אחוז החזקה, למשל 0.25 עבור 25%
+}
+
+// 3. טבלת יחידות (שוכרים בתוך הנכס - חנויות, משרדים וכו')
+model Unit {
+  id              String        @id @default(uuid())
+  assetId         String
+  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  description     String        // תיאור היחידה (למשל: "חנות דגים", "מכבסה 26 מ״ר")
+  sizeSqm         Float?        // גודל במ"ר
+  status          String        @default("Vacant") // "Rented", "Vacant"
+
+  contracts       Contract[]
+}
+
+// 4. טבלת חוזים (מקושרת ליחידה ספציפית)
+model Contract {
+  id              String        @id @default(uuid())
+  unitId          String
+  unit            Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenantName      String?       // שם השוכר
+  monthlyRent     Float         // שכר דירה חודשי ברוטו
+  startDate       DateTime?
+  endDate         DateTime?     // לטובת התראות סיום חוזה
+  fileUrl         String?       // קישור לקובץ החוזה (PDF)
+}
+
+// 5. טבלת הלוואות ומינוף
+model Loan {
+  id                 String        @id @default(uuid())
+  assetId            String
+  asset              Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  originalAmount     Float         // סכום הלוואה מקורי
+  currentBalance     Float         // יתרת הלוואה
+  monthlyPayment     Float         // סך ההחזר החודשי הכולל
+  principalPayment   Float         // החזר ע"ח הקרן (Principal)
+  interestPayment    Float         // החזר ע"ח הריבית (Interest)
+}
+
+// 6. טבלת תזרים - הכנסות והוצאות בפועל
+model Transaction {
+  id              String        @id @default(uuid())
+  assetId         String
+  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type            String        // סוג: "Income" (שכירות), "Expense" (ניהול/תחזוקה), "Tax"
+  amount          Float
+  date            DateTime      @default(now())
+  description     String?       // פירוט (למשל "שכר דירה מרץ")
+}
