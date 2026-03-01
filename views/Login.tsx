@@ -1,13 +1,15 @@
 
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseConfig';
+import * as nodeAuth from '../services/nodeAuthService';
 import { Building2, ArrowRight, Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
   onDemoLogin: () => void;
+  onNodeLogin?: (user: nodeAuth.NodeUser, token: string) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -15,12 +17,16 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
   const [error, setError] = useState<{message: string, detail?: string} | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const checkConfig = () => {
+  const isAuthConfigured = () => {
     const currentUrl = (supabase as { supabaseUrl?: string }).supabaseUrl ?? '';
-    if (currentUrl.includes('placeholder.supabase.co') || currentUrl.includes('YOUR_')) {
+    return !currentUrl.includes('placeholder.supabase.co') && !currentUrl.includes('YOUR_');
+  };
+
+  const checkConfig = () => {
+    if (!isAuthConfigured()) {
       setError({
-        message: 'Supabase Not Configured',
-        detail: 'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (see .env.example).'
+        message: 'Use app account or Demo',
+        detail: 'Enter email and password above and click Sign Up / Log In to use the app account, or use "Enter as Guest (Demo)" below. If you see this after clicking Sign Up, the server may be offline.'
       });
       return false;
     }
@@ -28,8 +34,6 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
   };
 
   const handleEmailAuth = async () => {
-    if (!checkConfig()) return;
-    
     const cleanEmail = email.trim();
     const cleanPass = password.trim();
 
@@ -42,24 +46,49 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
     setError(null);
     setSuccessMsg('');
 
+    // When Supabase is not configured, use Node backend auth (if onNodeLogin was passed)
+    const useNodeAuth = !isAuthConfigured() && onNodeLogin;
+
     try {
+      if (useNodeAuth) {
+        const data = isSignUp
+          ? await nodeAuth.register(cleanEmail, cleanPass)
+          : await nodeAuth.login(cleanEmail, cleanPass);
+        onNodeLogin(data.user, data.token);
+        return;
+      }
+
+      if (!isAuthConfigured()) {
+        setError({
+          message: 'Use app account or Demo',
+          detail: 'Sign up with email and password above (app account), or use "Enter as Guest (Demo)" below. Make sure the server is running (npm run start).'
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (!checkConfig()) {
+        setLoading(false);
+        return;
+      }
+
       if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ 
-          email: cleanEmail, 
-          password: cleanPass 
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: cleanPass
         });
         if (error) throw error;
-        
+
         if (data.user && !data.session) {
-           setSuccessMsg("Account created! Please check your email inbox to confirm registration.");
-           setIsSignUp(false); 
+          setSuccessMsg("Account created! Please check your email inbox to confirm registration.");
+          setIsSignUp(false);
         } else {
-           setSuccessMsg("Account created! Logging you in...");
+          setSuccessMsg("Account created! Logging you in...");
         }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ 
-          email: cleanEmail, 
-          password: cleanPass 
+        const { error } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password: cleanPass
         });
         if (error) throw error;
       }
@@ -108,6 +137,13 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
           <h1 className="text-2xl font-bold">RE Investor Pro</h1>
           <p className="text-brand-100 text-sm">Real Estate Tracker</p>
         </div>
+
+        {/* When auth not configured, suggest Demo */}
+        {!isAuthConfigured() && (
+          <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl border border-white/30 text-center text-sm text-brand-100">
+            Use the form to <strong className="text-white">Sign up / Log in</strong> with the app account, or <strong className="text-white">Enter as Guest (Demo)</strong> below.
+          </div>
+        )}
 
         {/* Auth Form */}
         <div className="bg-white/10 backdrop-blur-sm p-6 rounded-xl border border-white/20 space-y-4 shadow-2xl">
@@ -178,14 +214,17 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
           </button>
         </div>
 
-        {/* Demo Mode */}
-        <button 
-          onClick={onDemoLogin}
-          className="flex items-center justify-center space-x-2 text-brand-100 hover:text-white transition-colors group mx-auto"
-        >
-          <span className="text-sm font-medium">Try Demo Mode</span>
-          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-        </button>
+        {/* Demo / Guest – enter without account */}
+        <div className="pt-2 border-t border-white/20">
+          <p className="text-brand-200 text-xs mb-2">No account? Enter with sample data</p>
+          <button 
+            onClick={onDemoLogin}
+            className="w-full py-3 px-4 bg-white/20 hover:bg-white/30 border border-white/40 rounded-lg font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            <span>Enter as Guest (Demo)</span>
+            <ArrowRight size={18} />
+          </button>
+        </div>
       </div>
 
       <p className="absolute bottom-6 text-[10px] text-brand-200 uppercase tracking-widest font-bold">
