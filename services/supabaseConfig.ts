@@ -19,7 +19,10 @@ const getValidUrl = (url: string) => {
   }
 };
 
-export const supabase = createClient(getValidUrl(SUPABASE_URL), cleanKey(SUPABASE_ANON_KEY));
+// Supabase client requires a non-empty key; use placeholder when not configured so the app can load (e.g. Demo mode)
+const url = getValidUrl(SUPABASE_URL);
+const key = cleanKey(SUPABASE_ANON_KEY) || 'placeholder-key-not-configured';
+export const supabase = createClient(url, key);
 
 /**
  * RESCUE SQL - RUN THIS IN SUPABASE SQL EDITOR
