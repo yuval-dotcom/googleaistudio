@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, LogOut, RefreshCw, Loader2, User, Building2, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, Save, LogOut, RefreshCw, Loader2, User, Building2, Plus, Trash2, Server, ExternalLink } from 'lucide-react';
 import { currencyService } from '../services/currencyService';
 import { CurrencyCode, Language, Company } from '../types';
 import { t } from '../services/translationService';
@@ -11,9 +11,12 @@ interface SettingsProps {
   onLogout: () => void;
   lang: Language;
   service: any;
+  /** When true, show links to server API and users list (app account) */
+  showServerLinks?: boolean;
+  assetsCount?: number;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ onBack, onSave, onLogout, lang, service }) => {
+export const Settings: React.FC<SettingsProps> = ({ onBack, onSave, onLogout, lang, service, showServerLinks, assetsCount = 0 }) => {
   const [rates, setRates] = useState<Record<CurrencyCode, number>>({ NIS: 1, USD: 0, EUR: 0 });
   const [apiKey, setApiKey] = useState('570ec01f22a0486e89a0673bb26f3ecc');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -154,6 +157,29 @@ export const Settings: React.FC<SettingsProps> = ({ onBack, onSave, onLogout, la
              </div>
            </div>
         </section>
+
+        {/* Server & API (when using app account) */}
+        {showServerLinks && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+            <div className="flex items-center gap-2 mb-4 text-gray-600">
+              <Server size={18} />
+              <h3 className="font-black text-[10px] uppercase tracking-widest">Server & API</h3>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Your data is stored on the server. Assets in your account: <strong>{assetsCount}</strong>
+            </p>
+            <div className="space-y-2">
+              <a href="/api" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors text-xs font-bold text-gray-700">
+                <span>API endpoints (JSON)</span>
+                <ExternalLink size={14} />
+              </a>
+              <a href="/api/auth/users" target="_blank" rel="noopener noreferrer" className="flex items-center justify-between w-full p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors text-xs font-bold text-gray-700">
+                <span>Users list (dev)</span>
+                <ExternalLink size={14} />
+              </a>
+            </div>
+          </section>
+        )}
 
         {/* Account Section */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-red-50">
