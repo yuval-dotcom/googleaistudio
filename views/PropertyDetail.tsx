@@ -27,7 +27,24 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
   const [docError, setDocError] = useState<string | null>(null);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [loadingUrls, setLoadingUrls] = useState<Record<string, boolean>>({});
+  const [addUnitOpen, setAddUnitOpen] = useState(false);
+  const [addPartnerOpen, setAddPartnerOpen] = useState(false);
+  const [addLoanOpen, setAddLoanOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const refreshProperty = async () => {
+    if (typeof service.getAsset === 'function') {
+      try {
+        const updated = await service.getAsset(property.id);
+        setLocalProperty(updated);
+        if (onUpdate) onUpdate(updated);
+      } catch (e) {
+        console.error('Refresh failed', e);
+      }
+    }
+  };
 
   useEffect(() => { 
     setLocalProperty(property); 
@@ -93,7 +110,7 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
       setLocalProperty(updatedProperty);
       if (onUpdate) onUpdate(updatedProperty);
     } catch (err: any) {
-      setDocError(err.message || "Upload failed. Ensure the bucket is created in Supabase.");
+      setDocError(err.message || "Upload failed. Check server upload configuration.");
     } finally {
       setIsUploading(false);
     }
@@ -133,6 +150,26 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
                 </div>
               </div>
 
+              {addUnitOpen && (
+                <AddUnitForm
+                  onSave={async (desc, size) => {
+                    setSaving(true); setSaveError(null);
+                    try {
+                      await service.addUnit(property.id, { description: desc, sizeSqm: size ? Number(size) : undefined });
+                      await refreshProperty();
+                      setAddUnitOpen(false);
+                    } catch (e: any) {
+                      setSaveError(e.message || 'Failed');
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  onCancel={() => { setAddUnitOpen(false); setSaveError(null); }}
+                  saving={saving}
+                  error={saveError}
+                  currency={localProperty.currency}
+                />
+              )}
               {localProperty.units && localProperty.units.length > 0 ? (
                 <div className="space-y-3">
                   {localProperty.units.map((unit) => (
@@ -166,8 +203,16 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
                      <p className="text-[10px] text-gray-400">Monthly</p>
                    </div>
                 </div>
-              ) : (
+              ) : !addUnitOpen && (
                 <p className="text-gray-400 text-sm italic">No lease active</p>
+              )}
+              {!addUnitOpen && typeof service.addUnit === 'function' && (
+                <button
+                  onClick={() => setAddUnitOpen(true)}
+                  className="w-full mt-3 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm font-bold flex items-center justify-center gap-2 hover:border-brand-300 hover:text-brand-600 transition-colors"
+                >
+                  <Plus size={16} /> Add Unit
+                </button>
               )}
             </div>
 
@@ -184,6 +229,26 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
       case 'financials':
         return (
           <div className="space-y-4 animate-fade-in">
+            {addLoanOpen && typeof service.addLoan === 'function' && (
+              <AddLoanForm
+                onSave={async (payload) => {
+                  setSaving(true); setSaveError(null);
+                  try {
+                    await service.addLoan(property.id, payload);
+                    await refreshProperty();
+                    setAddLoanOpen(false);
+                  } catch (e: any) {
+                    setSaveError(e.message || 'Failed');
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                onCancel={() => { setAddLoanOpen(false); setSaveError(null); }}
+                saving={saving}
+                error={saveError}
+                currency={localProperty.currency}
+              />
+            )}
             <Card className="bg-brand-600 text-white border-none">
               <p className="text-[10px] font-black uppercase opacity-70 mb-1">Estimated ROI (Cap Rate)</p>
               <div className="flex items-end gap-2">
@@ -204,6 +269,14 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
                 <p className="text-lg font-bold text-gray-800">{currencyService.format(localProperty.loanBalance || 0, localProperty.currency)}</p>
               </div>
             </div>
+            {!addLoanOpen && typeof service.addLoan === 'function' && (
+              <button
+                onClick={() => setAddLoanOpen(true)}
+                className="w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm font-bold flex items-center justify-center gap-2 hover:border-brand-300 hover:text-brand-600 transition-colors"
+              >
+                <Plus size={16} /> Add Loan
+              </button>
+            )}
           </div>
         );
 
@@ -212,9 +285,28 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
           <div className="space-y-4 animate-fade-in">
              <div className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
                 <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2"><Users size={16} /> Ownership Structure</h3>
+                {addPartnerOpen && typeof service.addOwnership === 'function' && (
+                  <AddPartnerForm
+                    onSave={async (entityName, percentage) => {
+                      setSaving(true); setSaveError(null);
+                      try {
+                        await service.addOwnership(property.id, { entityName, percentage });
+                        await refreshProperty();
+                        setAddPartnerOpen(false);
+                      } catch (e: any) {
+                        setSaveError(e.message || 'Failed');
+                      } finally {
+                        setSaving(false);
+                      }
+                    }}
+                    onCancel={() => { setAddPartnerOpen(false); setSaveError(null); }}
+                    saving={saving}
+                    error={saveError}
+                  />
+                )}
                 <div className="space-y-3">
                   {(localProperty.partners || [{uid: 'me', name: 'Me (Sole Owner)', percentage: 100, hasAccess: true}]).map((p, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div key={p.uid || i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                        <div className="flex items-center gap-3">
                           <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center border border-gray-200 text-gray-400">
                              <User size={16} />
@@ -225,6 +317,14 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
                     </div>
                   ))}
                 </div>
+                {!addPartnerOpen && typeof service.addOwnership === 'function' && (
+                  <button
+                    onClick={() => setAddPartnerOpen(true)}
+                    className="w-full mt-3 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-gray-500 text-sm font-bold flex items-center justify-center gap-2 hover:border-brand-300 hover:text-brand-600 transition-colors"
+                  >
+                    <Plus size={16} /> Add Partner
+                  </button>
+                )}
              </div>
           </div>
         );
@@ -386,3 +486,89 @@ export const PropertyDetail: React.FC<PropertyDetailProps> = ({ property, onBack
     </div>
   );
 };
+
+function AddUnitForm({ onSave, onCancel, saving, error, currency }: {
+  onSave: (description: string, sizeSqm?: string) => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+  currency: string;
+}) {
+  const [desc, setDesc] = React.useState('');
+  const [size, setSize] = React.useState('');
+  return (
+    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 mb-3">
+      <p className="text-xs font-bold text-gray-600 uppercase">New Unit</p>
+      <input placeholder="Description (e.g. חנות דגים)" value={desc} onChange={e => setDesc(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Size (sqm)" type="number" value={size} onChange={e => setSize(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      {error && <p className="text-red-600 text-xs">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={() => onSave(desc, size || undefined)} disabled={!desc.trim() || saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg font-bold text-sm disabled:opacity-50">
+          {saving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
+        </button>
+        <button onClick={onCancel} disabled={saving} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function AddPartnerForm({ onSave, onCancel, saving, error }: {
+  onSave: (entityName: string, percentage: number) => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+}) {
+  const [name, setName] = React.useState('');
+  const [pct, setPct] = React.useState('');
+  return (
+    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 mb-3">
+      <p className="text-xs font-bold text-gray-600 uppercase">New Partner</p>
+      <input placeholder="Entity name (e.g. ג.מ אגם)" value={name} onChange={e => setName(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Percentage (0-100)" type="number" min="0" max="100" value={pct} onChange={e => setPct(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      {error && <p className="text-red-600 text-xs">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={() => onSave(name.trim(), Number(pct) || 0)} disabled={!name.trim() || saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg font-bold text-sm disabled:opacity-50">
+          {saving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
+        </button>
+        <button onClick={onCancel} disabled={saving} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold">Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function AddLoanForm({ onSave, onCancel, saving, error, currency }: {
+  onSave: (payload: { originalAmount: number; currentBalance: number; monthlyPayment: number; principalPayment: number; interestPayment: number }) => void;
+  onCancel: () => void;
+  saving: boolean;
+  error: string | null;
+  currency: string;
+}) {
+  const [original, setOriginal] = React.useState('');
+  const [balance, setBalance] = React.useState('');
+  const [monthly, setMonthly] = React.useState('');
+  const [principal, setPrincipal] = React.useState('');
+  const [interest, setInterest] = React.useState('');
+  return (
+    <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 space-y-3 mb-3">
+      <p className="text-xs font-bold text-gray-600 uppercase">New Loan</p>
+      <input placeholder="Original amount" type="number" value={original} onChange={e => setOriginal(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Current balance" type="number" value={balance} onChange={e => setBalance(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Monthly payment" type="number" value={monthly} onChange={e => setMonthly(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Principal payment" type="number" value={principal} onChange={e => setPrincipal(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      <input placeholder="Interest payment" type="number" value={interest} onChange={e => setInterest(e.target.value)} className="w-full p-3 rounded-lg border border-gray-200 text-sm" />
+      {error && <p className="text-red-600 text-xs">{error}</p>}
+      <div className="flex gap-2">
+        <button onClick={() => onSave({
+          originalAmount: Number(original) || 0,
+          currentBalance: Number(balance) || 0,
+          monthlyPayment: Number(monthly) || 0,
+          principalPayment: Number(principal) || 0,
+          interestPayment: Number(interest) || 0,
+        })} disabled={saving} className="flex-1 py-2 bg-brand-600 text-white rounded-lg font-bold text-sm disabled:opacity-50">
+          {saving ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Save'}
+        </button>
+        <button onClick={onCancel} disabled={saving} className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold">Cancel</button>
+      </div>
+    </div>
+  );
+}

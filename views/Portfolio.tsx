@@ -18,10 +18,37 @@ interface PortfolioProps {
 
 export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, onRefresh, globalCurrency, onSelectProperty, lang, onAddProperty }) => {
   const [filterType, setFilterType] = useState<PropertyType | 'All'>('All');
+  const [ownerFilter, setOwnerFilter] = useState<string>('All');
 
-  const filteredProperties = filterType === 'All' 
-    ? properties 
-    : properties.filter(p => p.type === filterType);
+  const getOwnerName = (property: Property): string => {
+    if (property.holdingCompany?.trim()) return property.holdingCompany.trim();
+    if (property.partners && property.partners.length > 0) return property.partners[0].name || 'Private';
+    return 'Private';
+  };
+
+  const uiText = {
+    ownerFilter: lang === 'he' ? 'סינון לפי בעלים' : 'Owner Filter',
+    allOwners: lang === 'he' ? 'כל הבעלים' : 'All owners',
+    privateOwnership: lang === 'he' ? 'בעלות פרטית' : 'Private ownership',
+    ownerLabel: lang === 'he' ? 'בעלים' : 'Owner',
+    privateKeyword: lang === 'he' ? 'פרטי' : 'private',
+  };
+
+  const ownerOptions = Array.from(
+    new Set(properties.map((p) => getOwnerName(p)).filter(Boolean))
+  );
+
+  const filteredByType =
+    filterType === 'All' ? properties : properties.filter((p) => p.type === filterType);
+
+  const filteredProperties = filteredByType.filter((p) => {
+    if (ownerFilter === 'All') return true;
+    if (ownerFilter === 'Private') {
+      const owner = getOwnerName(p).toLowerCase();
+      return owner === 'private' || owner === 'פרטי' || owner === uiText.privateKeyword;
+    }
+    return getOwnerName(p) === ownerFilter;
+  });
 
   const calculateCapRate = (property: Property): string => {
     let projectedAnnualIncome = 0;
@@ -80,12 +107,32 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
          ))}
       </div>
 
+      <div className="mb-4">
+        <label className="block text-[10px] text-gray-400 uppercase font-black tracking-widest mb-2">
+          {uiText.ownerFilter}
+        </label>
+        <select
+          value={ownerFilter}
+          onChange={(e) => setOwnerFilter(e.target.value)}
+          className="w-full p-3 bg-white rounded-xl border border-gray-200 font-medium text-gray-700 outline-none"
+        >
+          <option value="All">{uiText.allOwners}</option>
+          <option value="Private">{uiText.privateOwnership}</option>
+          {ownerOptions.map((owner) => (
+            <option key={owner} value={owner}>
+              {owner}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="space-y-4">
         {filteredProperties.map(property => {
           const myPartner = property.partners?.find(p => p.hasAccess);
           const mySharePct = myPartner ? myPartner.percentage : 100;
           const roi = calculateCapRate(property);
           const isSplit = property.units && property.units.length > 0;
+          const ownerName = getOwnerName(property);
 
           return (
           <Card key={property.id} className="relative overflow-hidden group border-gray-100" onClick={() => onSelectProperty(property)}>
@@ -136,10 +183,13 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
                   <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                     <Layers size={10} />
                   </div>
-                  <span className="text-[10px] font-bold text-gray-400">
-                    {isSplit ? `${property.units?.length} Commercial Units` : `Single ${property.type}`}
+                  <span className="text-[10px] font-bold text-gray-500">
+                    {uiText.ownerLabel}: {ownerName}
                   </span>
                </div>
+               <span className="text-[10px] text-gray-400 font-bold">
+                 {isSplit ? `${property.units?.length} Units` : `Single ${property.type}`}
+               </span>
                <ArrowRight size={16} className="text-gray-300 group-hover:text-brand-600 group-hover:translate-x-1 transition-all" />
             </div>
           </Card>

@@ -40,6 +40,7 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
 
   const [errors, setErrors] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     service.getCompanies().then(setAvailableCompanies);
@@ -139,6 +140,27 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
     } finally { setIsSaving(false); }
   };
 
+  const handleDelete = async () => {
+    if (!property?.id || typeof service.deleteProperty !== 'function') return;
+    const confirmMsg =
+      lang === 'he'
+        ? 'למחוק את הנכס הזה לצמיתות? הפעולה תמחק גם נתונים קשורים.'
+        : 'Delete this property permanently? Related data may also be removed.';
+    const ok = window.confirm(confirmMsg);
+    if (!ok) return;
+
+    setIsDeleting(true);
+    setErrors([]);
+    try {
+      await service.deleteProperty(property.id);
+      onSave();
+    } catch (err: any) {
+      setErrors([err.message || (lang === 'he' ? 'מחיקת הנכס נכשלה.' : 'Failed to delete property.')]);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-gray-50 pb-32">
       <div className="bg-white p-4 border-b border-gray-200 sticky top-0 z-10 flex items-center justify-between">
@@ -146,10 +168,22 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
           <button onClick={onCancel} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full"><ArrowLeft size={20} /></button>
           <h1 className="font-bold text-lg">{property ? t('edit_property', lang) : t('add_property', lang)}</h1>
         </div>
-        <button onClick={handleSave} disabled={isSaving} className="bg-brand-600 text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 disabled:opacity-50">
+        <div className="flex items-center gap-2">
+          {property?.id && (
+            <button
+              onClick={handleDelete}
+              disabled={isDeleting || isSaving}
+              className="border border-red-200 text-red-600 bg-red-50 px-3 py-2 rounded-full text-sm font-bold flex items-center gap-2 active:scale-95 disabled:opacity-50"
+            >
+              {isDeleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+              <span>{lang === 'he' ? 'מחיקה' : 'Delete'}</span>
+            </button>
+          )}
+          <button onClick={handleSave} disabled={isSaving || isDeleting} className="bg-brand-600 text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2 shadow-sm active:scale-95 disabled:opacity-50">
           {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           <span>{t('save', lang)}</span>
-        </button>
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">

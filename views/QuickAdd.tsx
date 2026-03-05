@@ -2,18 +2,21 @@
 import React, { useState, useMemo } from 'react';
 import { Property, TransactionType } from '../types';
 import { dataService } from '../services/mockDataService';
-import { supabaseDataService } from '../services/supabaseService';
-import { supabase } from '../services/supabaseConfig';
 import { currencyService } from '../services/currencyService';
 import { ArrowLeft, Check, Loader2, AlertTriangle } from 'lucide-react';
 
+interface DataService {
+  addTransaction?: (payload: { userId?: string; propertyId: string; amount: number; type: TransactionType; category: string; date: string }) => Promise<unknown>;
+}
+
 interface QuickAddProps {
   properties: Property[];
+  service?: DataService;
   onComplete: () => void;
   onCancel: () => void;
 }
 
-export const QuickAdd: React.FC<QuickAddProps> = ({ properties, onComplete, onCancel }) => {
+export const QuickAdd: React.FC<QuickAddProps> = ({ properties, service, onComplete, onCancel }) => {
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<TransactionType>('income');
   const [propertyId, setPropertyId] = useState<string>(properties[0]?.id || '');
@@ -47,10 +50,9 @@ export const QuickAdd: React.FC<QuickAddProps> = ({ properties, onComplete, onCa
     setError(null);
 
     try {
-      const session = await supabase.auth.getSession();
-      const service = session.data.session ? supabaseDataService : dataService;
+      const effectiveService = service?.addTransaction ? service : dataService;
 
-      await service.addTransaction({
+      await effectiveService.addTransaction!({
         userId: 'user1',
         propertyId,
         amount: val,

@@ -134,7 +134,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
           <h1 className="text-2xl font-bold text-gray-900">{t('dashboard', lang)}</h1>
           <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest">Investor Pro v2</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <select
+            value={globalCurrency}
+            onChange={(e) => setGlobalCurrency(e.target.value as CurrencyCode)}
+            className="h-9 rounded-xl glass border border-white px-2 text-[10px] font-black text-gray-600 uppercase tracking-widest shadow-sm outline-none"
+            aria-label="Global currency"
+          >
+            <option value="NIS">₪ NIS</option>
+            <option value="USD">$ USD</option>
+            <option value="EUR">€ EUR</option>
+          </select>
           <button onClick={() => setLang(lang === 'en' ? 'he' : 'en')} className="w-9 h-9 rounded-xl glass border border-white flex items-center justify-center shadow-sm text-sm">
              {lang === 'en' ? '🇮🇱' : '🇺🇸'}
           </button>
@@ -231,6 +241,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
             <span className="font-bold text-xl">{properties.length}</span>
           </div>
         </div>
+      </Card>
+
+      {/* Deal Analysis entry point */}
+      <Card className="p-4 flex items-center justify-between border-dashed border-brand-200 bg-brand-50/40">
+        <div>
+          <p className="text-[10px] text-brand-600 uppercase font-black tracking-widest mb-1">
+            New Deal
+          </p>
+          <p className="text-xs text-gray-700">
+            Analyze a new investment opportunity and see NOI, Cap Rate and Cash-on-Cash.
+          </p>
+        </div>
+        <button
+          onClick={() => setView(ViewState.DEALS)}
+          className="px-3 py-2 rounded-full bg-brand-600 text-white text-[11px] font-bold flex items-center gap-1 shadow-md active:scale-95"
+        >
+          <Sparkles size={14} /> <span>Analyze</span>
+        </button>
       </Card>
 
       {/* Stats Grid */}

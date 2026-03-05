@@ -121,6 +121,12 @@ class DataService {
     return Promise.reject(new Error("Property not found"));
   }
 
+  deleteProperty(propertyId: string): Promise<void> {
+    this.properties = this.properties.filter((p) => p.id !== propertyId);
+    this.transactions = this.transactions.filter((t) => t.propertyId !== propertyId);
+    return Promise.resolve();
+  }
+
   getTransactions(): Promise<Transaction[]> {
     return Promise.resolve([...this.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
   }
