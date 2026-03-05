@@ -35,7 +35,8 @@ export async function createTransaction(data, userId = null) {
   return prisma.transaction.create({
     data: {
       assetId,
-      type,
+      // Normalize type to enum format
+      type: String(type).toUpperCase(),
       amount: Number(amount),
       date: date ? new Date(date) : undefined,
       description: description ?? undefined,
@@ -53,7 +54,7 @@ export async function updateTransaction(id, data, userId = null) {
     where: { id },
     data: {
       ...(data.assetId != null && { assetId: data.assetId }),
-      ...(data.type != null && { type: data.type }),
+      ...(data.type != null && { type: String(data.type).toUpperCase() }),
       ...(data.amount !== undefined && { amount: Number(data.amount) }),
       ...(data.date !== undefined && { date: data.date ? new Date(data.date) : undefined }),
       ...(data.description !== undefined && { description: data.description }),

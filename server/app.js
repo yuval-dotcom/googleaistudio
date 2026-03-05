@@ -11,6 +11,10 @@ import contractRoutes from './routes/contractRoutes.js';
 import loanRoutes from './routes/loanRoutes.js';
 import ownershipRoutes from './routes/ownershipRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
+import uploadRoutes from './routes/uploadRoutes.js';
+import dealRoutes from './routes/dealRoutes.js';
+import alertRoutes from './routes/alertRoutes.js';
+import bankAccountRoutes from './routes/bankAccountRoutes.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -43,6 +47,8 @@ app.get('/api', (req, res) => {
       assets: {
         'GET /api/assets': 'List all assets',
         'GET /api/assets/:id': 'Get one asset (with units, ownerships, loans, transactions)',
+        'GET /api/assets/:id/projection': '5-year cash flow projection (query: years?)',
+        'GET /api/assets/:id/ownership-income': 'Income per ownership entity',
         'POST /api/assets': 'Create asset (body: name, type, purchaseYear?, purchasePrice?, currentValue?)',
         'PUT /api/assets/:id': 'Update asset',
         'DELETE /api/assets/:id': 'Delete asset',
@@ -75,12 +81,28 @@ app.get('/api', (req, res) => {
         'PUT /api/assets/:assetId/ownerships/:ownershipId': 'Update ownership',
         'DELETE /api/assets/:assetId/ownerships/:ownershipId': 'Delete ownership',
       },
+      deals: {
+        'GET /api/deals': 'List analyzed potential deals (each with metrics)',
+        'GET /api/deals/:id': 'Get a single potential deal + metrics',
+        'POST /api/deals': 'Create and analyze potential deal (body: name, assetType, purchasePrice, equityAmount, loanAmount?, interestRate?, holdYears?, expectedRent?, expectedOccupancy?, operatingExpenses?, location?)',
+      },
       transactions: {
         'GET /api/transactions': 'List all transactions (query: ?assetId= to filter)',
         'GET /api/transactions/:id': 'Get one transaction',
         'POST /api/transactions': 'Create transaction (body: assetId, type, amount, date?, description?)',
         'PUT /api/transactions/:id': 'Update transaction',
         'DELETE /api/transactions/:id': 'Delete transaction',
+      },
+      upload: {
+        'POST /api/upload': 'Upload file (multipart file; returns { url, id, name, path, uploadedAt })',
+      },
+      alerts: {
+        'GET /api/alerts': 'List alerts for current user (lease expiries and possible payment delays)',
+      },
+      bankAccounts: {
+        'GET /api/bank-accounts': 'List bank accounts (query: ?assetId= to filter, scoped by current user)',
+        'POST /api/bank-accounts': 'Create bank account (body: assetId?, bankName?, accountName?, accountRef?, currency?)',
+        'DELETE /api/bank-accounts/:id': 'Delete bank account',
       },
     },
     note: 'Protected routes (assets, transactions, units, etc.) require header: Authorization Bearer <token>',
@@ -96,6 +118,14 @@ app.use('/api/units/:unitId/contracts', requireAuth, contractRoutes);
 app.use('/api/assets/:assetId/loans', requireAuth, loanRoutes);
 app.use('/api/assets/:assetId/ownerships', requireAuth, ownershipRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
+app.use('/api/upload', requireAuth, uploadRoutes);
+app.use('/api/deals', requireAuth, dealRoutes);
+app.use('/api/alerts', requireAuth, alertRoutes);
+app.use('/api/bank-accounts', requireAuth, bankAccountRoutes);
+
+// Uploaded files (serve from project root uploads/)
+const uploadsPath = path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsPath));
 
 // Static assets (Vite build output)
 if (hasDist) {

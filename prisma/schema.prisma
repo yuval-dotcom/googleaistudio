@@ -3,8 +3,36 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" 
+  provider = "sqlite"
   url      = env("DATABASE_URL")
+}
+
+// Enums for structured types
+enum AssetType {
+  COMMERCIAL
+  RESIDENTIAL
+  LAND
+  FOREIGN
+  PENSION_FUND
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TAX
+}
+
+enum PaymentFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum IndexationType {
+  NONE
+  CPI
+  USD
+  EUR
 }
 
 // 0. משתמשים (להתחברות)
@@ -18,16 +46,34 @@ model User {
   assets       Asset[]
 }
 
-// 1. טבלת נכסים (הנכס הפיזי או הקרן)
+// 1. טבלת נכסים (הנכס הפיזי, הקרן או נכס פנסיוני)
 model Asset {
   id              String        @id @default(uuid())
   userId          String?       // בעלות: נכס שייך למשתמש (null = לא משויך)
   user            User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
   name            String        // שם הנכס (למשל: "מרכז מסחרי רשל״צ")
-  type            String        // סוג: "Commercial", "Residential", "Land", "Fund"
+  type            AssetType     // סוג: מסחרי, קרקע, חו"ל, בית, הון פנסיוני
+
+  // מיקום ומאפייני שימוש
+  country         String?       // מדינה
+  city            String?       // עיר
+  address         String?       // כתובת מלאה
+  status          String?       // סטטוס: Active / InRealization / UnderReview וכו'
+  usageType       String?       // סוג שימוש: Retail / Office / Land / Pension וכו'
+  occupancyRate   Float?        // שיעור תפוסה (0-1)
+
+  // נתונים פיננסיים בסיסיים
   purchaseYear    Int?          // שנת קנייה
   purchasePrice   Float         @default(0) // מחיר קנייה (100%)
   currentValue    Float         @default(0) // שווי נוכחי (100%)
+
+  // שדות ייעודיים להון פנסיוני (קרנות, קופות, פנסיה)
+  pensionFundType String?       // סוג הקרן (קופ"ג, השתלמות, פנסיה וכו')
+  pensionProvider String?       // גוף מנהל
+  pensionBalance  Float?        // יתרה נוכחית
+  pensionVesting  DateTime?     // מועד הפקדה/שחרור צפוי
+
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -35,18 +81,35 @@ model Asset {
   units           Unit[]
   loans           Loan[]
   transactions    Transaction[]
+  bankAccounts    BankAccount[]
 }
 
-// 2. טבלת החזקות/שותפויות (לניהול החלק היחסי של הקרן ושל שותפים אחרים)
+// 2. משקיעים / גופים מחזיקים
+model Investor {
+  id        String      @id @default(uuid())
+  name      String
+  type      String?     // Fund / Individual / Company וכו'
+  email     String?
+  phone     String?
+  createdAt DateTime    @default(now())
+
+  ownerships Ownership[]
+}
+
+// 3. טבלת החזקות/שותפויות (לניהול החלק היחסי של הקרן ושל שותפים אחרים)
 model Ownership {
   id              String        @id @default(uuid())
   assetId         String
   asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  investorId      String?       // קישור לישות משקיע פורמלית (אופציונלי לצורך מעבר הדרגתי)
+  investor        Investor?     @relation(fields: [investorId], references: [id], onDelete: SetNull)
+
   entityName      String        // שם המחזיק (למשל: "קרן טל", "ג.מ אגם")
   percentage      Float         // אחוז החזקה, למשל 0.25 עבור 25%
 }
 
-// 3. טבלת יחידות (שוכרים בתוך הנכס - חנויות, משרדים וכו')
+// 4. טבלת יחידות (שוכרים בתוך הנכס - חנויות, משרדים וכו')
 model Unit {
   id              String        @id @default(uuid())
   assetId         String
@@ -58,19 +121,25 @@ model Unit {
   contracts       Contract[]
 }
 
-// 4. טבלת חוזים (מקושרת ליחידה ספציפית)
+// 5. טבלת חוזים (מקושרת ליחידה ספציפית)
 model Contract {
-  id              String        @id @default(uuid())
-  unitId          String
-  unit            Unit          @relation(fields: [unitId], references: [id], onDelete: Cascade)
-  tenantName      String?       // שם השוכר
-  monthlyRent     Float         // שכר דירה חודשי ברוטו
-  startDate       DateTime?
-  endDate         DateTime?     // לטובת התראות סיום חוזה
-  fileUrl         String?       // קישור לקובץ החוזה (PDF)
+  id               String          @id @default(uuid())
+  unitId           String
+  unit             Unit            @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  tenantName       String?         // שם השוכר
+  monthlyRent      Float           // שכר דירה חודשי ברוטו
+  startDate        DateTime?
+  endDate          DateTime?       // לטובת התראות סיום חוזה
+
+  // שדות מתקדמים לניהול חוזים
+  paymentFrequency PaymentFrequency @default(MONTHLY)
+  indexationType   IndexationType   @default(NONE)
+  delayDaysAllowed Int?            // ימי עיכוב מותר לפני התראה
+
+  fileUrl          String?         // קישור לקובץ החוזה (PDF)
 }
 
-// 5. טבלת הלוואות ומינוף
+// 6. טבלת הלוואות ומינוף
 model Loan {
   id                 String        @id @default(uuid())
   assetId            String
@@ -82,13 +151,45 @@ model Loan {
   interestPayment    Float         // החזר ע"ח הריבית (Interest)
 }
 
-// 6. טבלת תזרים - הכנסות והוצאות בפועל
+// 7. טבלת תזרים - הכנסות והוצאות בפועל
 model Transaction {
-  id              String        @id @default(uuid())
+  id              String          @id @default(uuid())
   assetId         String
-  asset           Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  type            String        // סוג: "Income" (שכירות), "Expense" (ניהול/תחזוקה), "Tax"
+  asset           Asset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type            TransactionType // INCOME / EXPENSE / TAX
   amount          Float
-  date            DateTime      @default(now())
-  description     String?       // פירוט (למשל "שכר דירה מרץ")
+  date            DateTime        @default(now())
+  description     String?         // פירוט (למשל "שכר דירה מרץ")
+}
+
+// 8. חשבונות בנק מקושרים לנכסים (הכנה לסינכרון עתידי)
+model BankAccount {
+  id              String   @id @default(uuid())
+  assetId         String?
+  asset           Asset?   @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  bankName        String?
+  accountName     String?
+  accountRef      String?  // מזהה חיצוני לספק Open Banking / הנהלת חשבונות
+  currency        String?  // NIS / USD וכו'
+  createdAt       DateTime @default(now())
+}
+
+// 9. עסקאות חדשות לבחינה (אנליזה ולא נכס קיים)
+model PotentialDeal {
+  id                String   @id @default(uuid())
+  name              String
+  location          String?
+  assetType         AssetType
+
+  purchasePrice     Float
+  equityAmount      Float
+  loanAmount        Float
+  interestRate      Float?  // ריבית משוערת
+  holdYears         Int?    // תקופת החזקה
+
+  expectedRent      Float?  // שכירות שנתית/חודשית צפויה
+  expectedOccupancy Float?  // 0-1
+  operatingExpenses Float?  // הוצאות תפעול שנתיות
+
+  createdAt         DateTime @default(now())
 }

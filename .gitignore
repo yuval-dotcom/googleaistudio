@@ -27,3 +27,4 @@ dist-ssr
 
 /generated/prisma
 prisma/dev.db
+uploads/

@@ -1,4 +1,5 @@
 import * as assetService from '../services/assetService.js';
+import * as financeService from '../services/financeService.js';
 
 export async function list(req, res) {
   try {
@@ -14,6 +15,27 @@ export async function getOne(req, res) {
     const asset = await assetService.getAssetById(req.params.id, req.userId);
     if (!asset) return res.status(404).json({ error: 'Asset not found' });
     res.json(asset);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+}
+
+export async function projection(req, res) {
+  try {
+    const years = Math.min(Number(req.query.years) || 5, 20);
+    const data = await financeService.getProjection(req.params.id, req.userId, years);
+    if (!data) return res.status(404).json({ error: 'Asset not found' });
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Server error' });
+  }
+}
+
+export async function ownershipIncome(req, res) {
+  try {
+    const data = await financeService.getOwnershipIncome(req.params.id, req.userId);
+    if (!data) return res.status(404).json({ error: 'Asset not found' });
+    res.json(data);
   } catch (err) {
     res.status(500).json({ error: err.message || 'Server error' });
   }
