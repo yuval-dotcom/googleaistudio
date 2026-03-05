@@ -1,5 +1,3 @@
-import { app } from '../server/app.js';
-
 function readOriginalPath(req) {
   const fromQuery = req?.query?.__originalPath;
   if (typeof fromQuery === 'string' && fromQuery) return fromQuery;
@@ -29,10 +27,27 @@ function rebuildQuery(req) {
   return query ? `?${query}` : '';
 }
 
-export default function handler(req, res) {
+let cachedApp = null;
+
+async function getApp() {
+  if (cachedApp) return cachedApp;
+  const mod = await import('../server/app.js');
+  cachedApp = mod.app;
+  return cachedApp;
+}
+
+export default async function handler(req, res) {
   const originalPath = readOriginalPath(req);
   if (isValidOriginalPath(originalPath)) {
     req.url = `${originalPath}${rebuildQuery(req)}`;
   }
-  return app(req, res);
+  try {
+    const app = await getApp();
+    return app(req, res);
+  } catch (error) {
+    console.error('Failed to bootstrap Express app in Vercel handler', error);
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Server bootstrap failed. Check function logs for details.' }));
+  }
 }
