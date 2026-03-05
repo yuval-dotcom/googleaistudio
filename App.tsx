@@ -10,13 +10,13 @@ import { Login } from './views/Login';
 import { QuickAdd } from './views/QuickAdd';
 import { PropertyDetail } from './views/PropertyDetail';
 import { PropertyEditor } from './views/PropertyEditor';
+import { DealsAnalysis } from './views/DealsAnalysis';
 import { BottomNav } from './components/BottomNav';
-import { supabaseDataService } from './services/supabaseService';
 import { dataService as mockDataService } from './services/mockDataService';
-import { supabase } from './services/supabaseConfig';
+import { nodeApiDataService } from './services/nodeApiDataService';
+import { getMe, clearToken, setToken } from './services/nodeAuthService';
 import { getDir } from './services/translationService';
 import { Loader2, Database, RefreshCcw } from 'lucide-react';
-import { SETUP_SQL } from './services/supabaseConfig';
 
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
@@ -32,7 +32,26 @@ const App: React.FC = () => {
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [dbError, setDbError] = useState<string | null>(null);
 
-  const activeService = isDemo ? mockDataService : supabaseDataService;
+  const activeService = isDemo ? mockDataService : nodeApiDataService;
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('global_currency');
+      if (saved === 'NIS' || saved === 'USD' || saved === 'EUR') {
+        setGlobalCurrency(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load global currency', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('global_currency', globalCurrency);
+    } catch (e) {
+      console.error('Failed to persist global currency', e);
+    }
+  }, [globalCurrency]);
 
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;
@@ -56,26 +75,14 @@ const App: React.FC = () => {
   }, [user, isDemo, activeService]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user);
+    getMe().then((me) => {
+      if (me) {
+        setUser({ ...me, source: 'node' });
         setView(ViewState.HOME);
       }
       setLoading(false);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      if (currentUser) {
-        setIsDemo(false);
-        if (view === ViewState.LOGIN) setView(ViewState.HOME);
-      } else if (!isDemo) {
-        setView(ViewState.LOGIN);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [isDemo]);
+  }, []);
 
   useEffect(() => {
     if (user || isDemo) refreshData();
@@ -87,7 +94,7 @@ const App: React.FC = () => {
       setUser(null);
       setView(ViewState.LOGIN);
     } else {
-      await supabase.auth.signOut();
+      clearToken();
       setUser(null);
       setView(ViewState.LOGIN);
     }
@@ -97,12 +104,30 @@ const App: React.FC = () => {
     if (dbError === 'MISSING_TABLES') return <DatabaseSetupError onRetry={refreshData} />;
     
     if (!user && !isDemo) {
-      return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+      return (
+        <Login
+          onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+          onNodeLogin={(nodeUser, token) => {
+            setToken(token);
+            setUser({ ...nodeUser, source: 'node' });
+            setView(ViewState.HOME);
+          }}
+        />
+      );
     }
 
     switch (view) {
       case ViewState.LOGIN:
-        return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+        return (
+          <Login
+            onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+            onNodeLogin={(nodeUser, token) => {
+              setToken(token);
+              setUser({ ...nodeUser, source: 'node' });
+              setView(ViewState.HOME);
+            }}
+          />
+        );
       case ViewState.HOME:
         return <Dashboard 
           properties={properties} 
@@ -141,19 +166,48 @@ const App: React.FC = () => {
           service={activeService}
         />;
       case ViewState.QUICK_ADD:
-        return <QuickAdd 
-          properties={properties} 
-          onComplete={() => { refreshData(); setView(ViewState.HOME); }} 
-          onCancel={() => setView(ViewState.HOME)} 
+        return <QuickAdd
+          properties={properties}
+          service={activeService}
+          onComplete={() => { refreshData(); setView(ViewState.HOME); }}
+          onCancel={() => setView(ViewState.HOME)}
         />;
       case ViewState.CHAT:
         return <ChatAssistant lang={lang} properties={properties} transactions={transactions} />;
       case ViewState.TAX_REPORT:
         return <TaxReport properties={properties} transactions={transactions} globalCurrency={globalCurrency} lang={lang} />;
       case ViewState.SETTINGS:
-        return <Settings onBack={() => setView(ViewState.HOME)} onLogout={handleLogout} onSave={refreshData} lang={lang} service={activeService} />;
+        return (
+          <Settings
+            onBack={() => setView(ViewState.HOME)}
+            onLogout={handleLogout}
+            onSave={refreshData}
+            lang={lang}
+            service={activeService}
+            showServerLinks={user?.source === 'node'}
+            assetsCount={properties.length}
+          />
+        );
+      case ViewState.DEALS:
+        return (
+          <DealsAnalysis
+            lang={lang}
+            globalCurrency={globalCurrency}
+            onBack={() => setView(ViewState.HOME)}
+            service={activeService}
+          />
+        );
       default:
-        return <Login onDemoLogin={() => { setIsDemo(true); setUser({id:'demo'}); setView(ViewState.HOME); }} />;
+        return (
+          <Login
+            onDemoLogin={() => { setIsDemo(true); setUser({ id: 'demo' }); setView(ViewState.HOME); }}
+            onNodeLogin={(nodeUser, token) => {
+              setToken(token);
+              setUser({ ...nodeUser, source: 'node' });
+              setView(ViewState.HOME);
+            }}
+          />
+        );
     }
   };
 
@@ -174,20 +228,15 @@ const App: React.FC = () => {
   );
 };
 
-const DatabaseSetupError = ({ onRetry }: { onRetry: () => void }) => {
-  const [copied, setCopied] = useState(false);
-  return (
-    <div className="h-full flex flex-col items-center justify-center p-6 text-center">
-      <Database size={48} className="text-brand-600 mb-4" />
-      <h2 className="text-xl font-bold mb-2">Setup Required</h2>
-      <p className="text-xs text-gray-500 mb-4">The companies table or other schemas are missing. Please run the following SQL in your Supabase SQL Editor.</p>
-      <pre className="w-full bg-gray-900 text-green-400 p-4 rounded-lg text-[10px] text-left overflow-auto h-40 mb-4">{SETUP_SQL}</pre>
-      <button onClick={() => { navigator.clipboard.writeText(SETUP_SQL); setCopied(true); }} className="text-brand-600 text-xs font-bold mb-6">{copied ? 'Copied!' : 'Copy SQL'}</button>
-      <button onClick={onRetry} className="bg-brand-600 text-white px-8 py-3 rounded-full font-bold shadow-lg flex items-center gap-2">
-        <RefreshCcw size={18} /> Retry Connection
-      </button>
-    </div>
-  );
-};
+const DatabaseSetupError = ({ onRetry }: { onRetry: () => void }) => (
+  <div className="h-full flex flex-col items-center justify-center p-6 text-center">
+    <Database size={48} className="text-brand-600 mb-4" />
+    <h2 className="text-xl font-bold mb-2">Setup Required</h2>
+    <p className="text-xs text-gray-500 mb-4">The database schema may be missing. Run <code className="bg-gray-200 px-1 rounded">npx prisma migrate deploy</code> on the server, then retry.</p>
+    <button onClick={onRetry} className="bg-brand-600 text-white px-8 py-3 rounded-full font-bold shadow-lg flex items-center gap-2">
+      <RefreshCcw size={18} /> Retry Connection
+    </button>
+  </div>
+);
 
 export default App;

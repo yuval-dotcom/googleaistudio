@@ -17,13 +17,29 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts'],
-    include: ['**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      exclude: ['node_modules/', 'vitest.setup.ts', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+      exclude: ['node_modules/', 'vitest.setup.ts', '**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}', 'server/**'],
     },
+    projects: [
+      {
+        name: 'frontend',
+        test: {
+          environment: 'jsdom',
+          setupFiles: ['./vitest.setup.ts'],
+          include: ['**/*.{test,spec}.{ts,tsx}'],
+          exclude: ['server/**', 'node_modules/**'],
+        },
+      },
+      {
+        name: 'server',
+        test: {
+          environment: 'node',
+          include: ['server/**/*.{test,spec}.js'],
+          exclude: ['node_modules/**'],
+        },
+      },
+    ],
   },
 });

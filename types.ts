@@ -91,6 +91,28 @@ export interface Transaction {
   notes?: string;
 }
 
+export interface DealWithMetrics {
+  deal: {
+    id: string;
+    name: string;
+    location?: string | null;
+    assetType: string;
+    purchasePrice: number;
+    equityAmount: number;
+    loanAmount?: number | null;
+    interestRate?: number | null;
+    holdYears?: number | null;
+    expectedRent?: number | null;
+    expectedOccupancy?: number | null;
+    operatingExpenses?: number | null;
+  };
+  metrics: {
+    noi: number;
+    capRate: number;
+    cashOnCash: number;
+  };
+}
+
 export enum ViewState {
   LOGIN = 'login',
   HOME = 'home',
@@ -101,5 +123,6 @@ export enum ViewState {
   CHAT = 'chat', 
   PROPERTY_DETAIL = 'property_detail',
   PROPERTY_EDIT = 'property_edit',
-  SETTINGS = 'settings'
+  SETTINGS = 'settings',
+  DEALS = 'deals'
 }

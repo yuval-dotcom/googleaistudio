@@ -33,3 +33,34 @@ The app runs at http://localhost:3000. AI requests go through `/api/ai` on the s
 - **Run tests with coverage:** `npm run test:coverage`
 
 Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://testing-library.com/react). Unit tests cover `services/translationService` and `services/currencyService`; component tests cover the Login view (with mocked Supabase).
+
+---
+
+## איך לוודא שהכל תקין (לוקאלית)
+
+1. **התקנת חבילות:** `npm install`
+2. **משתני סביבה:** וודא שקיים `.env` עם לפחות:
+   - `DATABASE_URL` (למשל `file:./dev.db` ל-SQLite מקומי)
+   - `GEMINI_API_KEY` (לפיצ'רים של AI)
+3. **מסד נתונים:** `npx prisma generate` ואז `npx prisma migrate deploy` (או `npx prisma db push` לפיתוח).
+4. **משתמש ל-seed:** צור משתמש אחת (הרשמה מהאפליקציה) או הוסף ידנית. אחר כך אפשר להריץ:  
+   `npm run seed "data/mangeassests.xlsx" <האימייל-שלך>`
+5. **טסטים:** `npm run test:run` – אם הכל עובר, הקוד והשירותים בסדר.
+6. **הרצה:** `npm run dev` – גלוש ל־http://localhost:3000, התחבר, ובדוק נכסים/תשואות/העלאות וכו'.
+
+אם כל השלבים עוברים והאפליקציה מגיבה כרגיל – הסביבה הלוקאלית תקינה.
+
+---
+
+## הרצה לא לוקאלית (Production)
+
+1. **Build:** `npm run build`
+2. **משתני סביבה** (חובה בסביבת production):
+   - `DATABASE_URL` – חיבור למסד נתונים (ב-production עדיף PostgreSQL, לא SQLite).
+   - `GEMINI_API_KEY` – מפתח ל־Gemini.
+   - `JWT_SECRET` – מחרוזת סודית חזקה (לא להשאיר את ברירת המחדל).
+   - `PORT` – (אופציונלי) פורט השרת, ברירת מחדל 3000.
+3. **מסד נתונים:** באותו שרת/סביבה הרץ `npx prisma migrate deploy` מול ה־`DATABASE_URL` של production.
+4. **הפעלת השרת:** `npm run start` (או `node server.js`).
+
+האפליקציה תגיש את הקבצים מ־`dist/` ואת כל ה־API (כולל `/api/ai`, `/api/assets` וכו'). וודא שה־reverse proxy (אם יש) מפנה נכון ל־Node על ה־PORT שבחרת.

@@ -1,40 +1,34 @@
-
 import React, { useState } from 'react';
-import { supabase } from '../services/supabaseConfig';
+import * as nodeAuth from '../services/nodeAuthService';
 import { Building2, ArrowRight, Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 
 interface LoginProps {
   onDemoLogin: () => void;
+  onNodeLogin?: (user: nodeAuth.NodeUser, token: string) => void;
 }
 
-export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
+export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<{message: string, detail?: string} | null>(null);
+  const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
 
-  const checkConfig = () => {
-    const currentUrl = (supabase as { supabaseUrl?: string }).supabaseUrl ?? '';
-    if (currentUrl.includes('placeholder.supabase.co') || currentUrl.includes('YOUR_')) {
-      setError({
-        message: 'Supabase Not Configured',
-        detail: 'Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env (see .env.example).'
-      });
-      return false;
-    }
-    return true;
-  };
-
   const handleEmailAuth = async () => {
-    if (!checkConfig()) return;
-    
     const cleanEmail = email.trim();
     const cleanPass = password.trim();
 
     if (!cleanEmail || !cleanPass) {
-      setError({ message: "Missing Fields", detail: "Please enter both email and password." });
+      setError({ message: 'Missing Fields', detail: 'Please enter both email and password.' });
+      return;
+    }
+
+    if (!onNodeLogin) {
+      setError({
+        message: 'Use app account or Demo',
+        detail: 'Sign up / Log in with email and password above, or use "Enter as Guest (Demo)" below. Make sure the server is running (npm run dev or npm run start).',
+      });
       return;
     }
 
@@ -43,26 +37,11 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
     setSuccessMsg('');
 
     try {
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ 
-          email: cleanEmail, 
-          password: cleanPass 
-        });
-        if (error) throw error;
-        
-        if (data.user && !data.session) {
-           setSuccessMsg("Account created! Please check your email inbox to confirm registration.");
-           setIsSignUp(false); 
-        } else {
-           setSuccessMsg("Account created! Logging you in...");
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({ 
-          email: cleanEmail, 
-          password: cleanPass 
-        });
-        if (error) throw error;
-      }
+      const data = isSignUp
+        ? await nodeAuth.register(cleanEmail, cleanPass)
+        : await nodeAuth.login(cleanEmail, cleanPass);
+      onNodeLogin(data.user, data.token);
+      if (isSignUp) setSuccessMsg('Account created! Logging you in...');
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -72,21 +51,15 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
 
   const handleAuthError = (err: any) => {
     console.error(err);
-    let msg = err.message || "Authentication failed.";
-    let detail = "";
-    
-    if (msg.includes("configuration") || msg.includes("URL")) {
-        detail = "Check your supabaseConfig.ts file.";
-    } else if (msg.includes("Invalid login credentials")) {
-        detail = isSignUp 
-          ? "Could not create user. Try a different email." 
-          : "User not found or wrong password. If you are new, please Sign Up first.";
-    } else if (msg.includes("rate limit")) {
-        detail = "Too many attempts. Please wait a moment.";
-    } else if (msg.includes("Email not confirmed")) {
-        detail = "Please check your inbox and verify your email address.";
+    const msg = err.message || 'Authentication failed.';
+    let detail = '';
+    if (msg.includes('Invalid login') || msg.includes('credentials')) {
+      detail = isSignUp ? 'Could not create user. Try a different email.' : 'User not found or wrong password. Sign Up first if you are new.';
+    } else if (msg.includes('rate limit')) {
+      detail = 'Too many attempts. Please wait a moment.';
+    } else if (err.message) {
+      detail = 'Make sure the server is running (npm run dev or npm run start).';
     }
-    
     setError({ message: msg, detail });
     setLoading(false);
   };
@@ -107,6 +80,10 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
         <div>
           <h1 className="text-2xl font-bold">RE Investor Pro</h1>
           <p className="text-brand-100 text-sm">Real Estate Tracker</p>
+        </div>
+
+        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl border border-white/30 text-center text-sm text-brand-100">
+          Use the form to <strong className="text-white">Sign up / Log in</strong> with your account, or <strong className="text-white">Enter as Guest (Demo)</strong> below.
         </div>
 
         {/* Auth Form */}
@@ -169,6 +146,8 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
           )}
 
           <button 
+            type="button"
+            data-testid="auth-submit"
             onClick={handleEmailAuth}
             disabled={loading}
             className="w-full bg-white text-brand-700 py-3 rounded-lg font-bold shadow-lg flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50 transition-all"
@@ -178,14 +157,17 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin }) => {
           </button>
         </div>
 
-        {/* Demo Mode */}
-        <button 
-          onClick={onDemoLogin}
-          className="flex items-center justify-center space-x-2 text-brand-100 hover:text-white transition-colors group mx-auto"
-        >
-          <span className="text-sm font-medium">Try Demo Mode</span>
-          <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
-        </button>
+        {/* Demo / Guest – enter without account */}
+        <div className="pt-2 border-t border-white/20">
+          <p className="text-brand-200 text-xs mb-2">No account? Enter with sample data</p>
+          <button 
+            onClick={onDemoLogin}
+            className="w-full py-3 px-4 bg-white/20 hover:bg-white/30 border border-white/40 rounded-lg font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+          >
+            <span>Enter as Guest (Demo)</span>
+            <ArrowRight size={18} />
+          </button>
+        </div>
       </div>
 
       <p className="absolute bottom-6 text-[10px] text-brand-200 uppercase tracking-widest font-bold">
