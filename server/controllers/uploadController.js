@@ -44,6 +44,10 @@ async function cleanupTempFile(filePath) {
   }
 }
 
+function normalizeUploadPath(uploadPath) {
+  return `/${String(uploadPath || '').replace(/^\/+/, '')}`;
+}
+
 export async function handleUpload(req, res) {
   if (!req.file) {
     return res.status(400).json({ error: 'No file uploaded' });
@@ -71,7 +75,7 @@ export async function handleUpload(req, res) {
         url: uploaded.url,
         id: path.basename(req.file.filename),
         name: req.file.originalname,
-        path: uploaded.path,
+        path: normalizeUploadPath(uploaded.path),
         type,
         uploadedAt: new Date().toISOString(),
       });
@@ -87,7 +91,7 @@ export async function handleUpload(req, res) {
     url,
     id: req.file.filename,
     name: req.file.originalname,
-    path: url,
+    path: normalizeUploadPath(url),
     type,
     uploadedAt: new Date().toISOString(),
   });
