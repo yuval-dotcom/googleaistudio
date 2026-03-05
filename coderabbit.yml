@@ -1,0 +1,12 @@
+system_language: en-US
+ignore_draft_pr: true
+disable_poem: true
+release_notes: true
+path_filters:
+  - "!dist/**"
+  - "!node_modules/**"
+  - "!uploads/**"
+  - "!data/*.xlsx"
+  - "!prisma/dev.db"
+  - "!**/*.lock"
+  - "!**/*.min.js"
