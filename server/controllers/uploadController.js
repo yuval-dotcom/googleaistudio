@@ -39,8 +39,8 @@ async function cleanupTempFile(filePath) {
   if (!filePath) return;
   try {
     await fsPromises.unlink(filePath);
-  } catch {
-    // Ignore cleanup errors for temp files.
+  } catch (error) {
+    console.warn('Failed to clean up temp upload file', { filePath, error });
   }
 }
 
