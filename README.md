@@ -58,8 +58,10 @@ Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://test
 1. **Build:** `npm run build`
 2. **משתני סביבה** (חובה בסביבת production):
    - `DATABASE_URL` – חיבור למסד נתונים (ב-production עדיף PostgreSQL, לא SQLite).
+   - `DIRECT_URL` – חיבור direct ל-PostgreSQL עבור Prisma migrate/introspection.
    - `GEMINI_API_KEY` – מפתח ל־Gemini.
    - `JWT_SECRET` – מחרוזת סודית חזקה (לא להשאיר את ברירת המחדל).
+   - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET` – חובה אם מעלים קבצים ב-Vercel (הקבצים מועלים ל-Supabase Storage ולא נשמרים מקומית).
    - `PORT` – (אופציונלי) פורט השרת, ברירת מחדל 3000.
 3. **מסד נתונים:** באותו שרת/סביבה הרץ `npx prisma migrate deploy` מול ה־`DATABASE_URL` של production.
 4. **הפעלת השרת:** `npm run start` (או `node server.js`).
