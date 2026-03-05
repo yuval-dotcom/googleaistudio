@@ -7,6 +7,11 @@ function readOriginalPath(req) {
   return null;
 }
 
+function isValidOriginalPath(path) {
+  if (typeof path !== 'string') return false;
+  return /^\/api(?:\/|$)/.test(path);
+}
+
 function rebuildQuery(req) {
   if (!req?.query || typeof req.query !== 'object') return '';
   const params = new URLSearchParams();
@@ -26,7 +31,7 @@ function rebuildQuery(req) {
 
 export default function handler(req, res) {
   const originalPath = readOriginalPath(req);
-  if (originalPath) {
+  if (isValidOriginalPath(originalPath)) {
     req.url = `${originalPath}${rebuildQuery(req)}`;
   }
   return app(req, res);
