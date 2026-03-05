@@ -1,19 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as authController from './authController.js';
+import * as authController from '../../../server/controllers/authController.js';
 
-vi.mock('../services/authService.js', () => ({
+vi.mock('../../../server/services/authService.js', () => ({
   createUser: vi.fn(),
   findUserByEmail: vi.fn(),
   verifyPassword: vi.fn(),
   findUserById: vi.fn(),
   listUsers: vi.fn(),
 }));
-vi.mock('../middleware/authMiddleware.js', () => ({
+vi.mock('../../../server/middleware/authMiddleware.js', () => ({
   createToken: vi.fn(() => Promise.resolve('fake-jwt')),
 }));
 
-import * as authService from '../services/authService.js';
-import * as authMiddleware from '../middleware/authMiddleware.js';
+import * as authService from '../../../server/services/authService.js';
+import * as authMiddleware from '../../../server/middleware/authMiddleware.js';
 
 function mockRes() {
   return {

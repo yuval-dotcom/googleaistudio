@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import request from 'supertest';
-import { app } from './app.js';
+import { app } from '../../../server/app.js';
 
 describe('API', () => {
   describe('GET /api', () => {

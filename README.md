@@ -40,7 +40,8 @@ Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://test
 
 1. **התקנת חבילות:** `npm install`
 2. **משתני סביבה:** וודא שקיים `.env` עם לפחות:
-   - `DATABASE_URL` (למשל `file:./dev.db` ל-SQLite מקומי)
+   - `DATABASE_URL` (למשל Supabase pooler על פורט `6543`; ראו סעיף "Supabase + Prisma (stable flow)")
+   - `DIRECT_URL` (למשל Supabase direct על פורט `5432`; נדרש ל-migrate/introspection)
    - `GEMINI_API_KEY` (לפיצ'רים של AI)
 3. **מסד נתונים:** `npx prisma generate` ואז `npx prisma migrate deploy` (או `npx prisma db push` לפיתוח).
 4. **משתמש ל-seed:** צור משתמש אחת (הרשמה מהאפליקציה) או הוסף ידנית. אחר כך אפשר להריץ:  
@@ -64,3 +65,34 @@ Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://test
 4. **הפעלת השרת:** `npm run start` (או `node server.js`).
 
 האפליקציה תגיש את הקבצים מ־`dist/` ואת כל ה־API (כולל `/api/ai`, `/api/assets` וכו'). וודא שה־reverse proxy (אם יש) מפנה נכון ל־Node על ה־PORT שבחרת.
+
+---
+
+## Supabase + Prisma (stable flow)
+
+> **חשוב:** ההנחיות בסעיף זה מחליפות את הדוגמאות הישנות של SQLite במסמך. בפרויקט הנוכחי עובדים עם PostgreSQL/Supabase, ולכן יש להגדיר `DATABASE_URL` (pooler, פורט `6543`, `pgbouncer=true`) ו-`DIRECT_URL` (direct, פורט `5432`).
+
+### 1) משתני סביבה נדרשים
+- `DATABASE_URL` = כתובת pooler של Supabase (פורט `6543`, עם `pgbouncer=true`) עבור runtime.
+- `DIRECT_URL` = כתובת direct של Supabase (פורט `5432`) עבור migrate/introspection.
+
+### 2) מעבר ראשוני מ-SQLite ל-PostgreSQL (חד-פעמי)
+1. בצע גיבוי למסד לפני שינוי היסטוריית migrations.
+2. ודא שב-`prisma/schema.prisma` יש:
+   - `provider = "postgresql"`
+   - `url = env("DATABASE_URL")`
+   - `directUrl = env("DIRECT_URL")`
+3. צור baseline migration ל-PostgreSQL (ב-repo).
+4. בסביבת Supabase שכבר מכילה schema קיים, הרץ פעם אחת:
+   - `npx prisma migrate resolve --applied <baseline_migration_name>`
+5. אימות:
+   - `npx prisma migrate status`
+   - `npx prisma migrate deploy`
+
+### 3) Deploy שוטף אחרי ה-baseline
+1. `npx prisma generate`
+2. `npx prisma migrate deploy`
+3. `npm run build`
+4. `npm run start`
+
+אם `migrate status` מציג `Database schema is up to date` ו-`migrate deploy` מחזיר `No pending migrations to apply` — היישור תקין.

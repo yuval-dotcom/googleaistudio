@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { currencyService } from './currencyService';
-import type { CurrencyCode } from '../types';
+import { currencyService } from '../../../services/currencyService';
+import type { CurrencyCode } from '../../../types';
 
 describe('currencyService', () => {
   beforeEach(() => {
@@ -51,13 +51,10 @@ describe('currencyService', () => {
     });
 
     it('converts between currencies using NIS as base', () => {
-      // NIS=1, USD=3.75, EUR=4.05. So 3.75 USD = 1 NIS, 4.05 EUR = 1 NIS.
-      // 100 USD -> 100 * 3.75 = 375 NIS -> 375 / 1 = 375 NIS
       const nisFromUsd = currencyService.convert(100, 'USD', 'NIS');
-      expect(nisFromUsd).toBeCloseTo(375, 2); // 100 * 3.75
+      expect(nisFromUsd).toBeCloseTo(375, 2);
 
       const eurFromUsd = currencyService.convert(100, 'USD', 'EUR');
-      // 100 USD = 375 NIS = 375/4.05 EUR
       expect(eurFromUsd).toBeCloseTo(375 / 4.05, 2);
     });
   });
