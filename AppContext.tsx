@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Property, Transaction, CurrencyCode, Language } from './types';
-import { supabaseDataService } from './services/supabaseService';
+import { nodeApiDataService } from './services/nodeApiDataService';
 import { dataService as mockDataService } from './services/mockDataService';
 
 interface AppContextType {
@@ -32,7 +32,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [error, setError] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
 
-  const dataService = isDemo ? mockDataService : supabaseDataService;
+  const dataService = isDemo ? mockDataService : nodeApiDataService;
 
   const refreshData = useCallback(async () => {
     setLoading(true);

@@ -1,6 +1,4 @@
-
 import React, { useState } from 'react';
-import { supabase } from '../services/supabaseConfig';
 import * as nodeAuth from '../services/nodeAuthService';
 import { Building2, ArrowRight, Loader2, Mail, Lock, AlertCircle } from 'lucide-react';
 
@@ -14,31 +12,23 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<{message: string, detail?: string} | null>(null);
+  const [error, setError] = useState<{ message: string; detail?: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
-
-  const isAuthConfigured = () => {
-    const currentUrl = (supabase as { supabaseUrl?: string }).supabaseUrl ?? '';
-    return !currentUrl.includes('placeholder.supabase.co') && !currentUrl.includes('YOUR_');
-  };
-
-  const checkConfig = () => {
-    if (!isAuthConfigured()) {
-      setError({
-        message: 'Use app account or Demo',
-        detail: 'Enter email and password above and click Sign Up / Log In to use the app account, or use "Enter as Guest (Demo)" below. If you see this after clicking Sign Up, the server may be offline.'
-      });
-      return false;
-    }
-    return true;
-  };
 
   const handleEmailAuth = async () => {
     const cleanEmail = email.trim();
     const cleanPass = password.trim();
 
     if (!cleanEmail || !cleanPass) {
-      setError({ message: "Missing Fields", detail: "Please enter both email and password." });
+      setError({ message: 'Missing Fields', detail: 'Please enter both email and password.' });
+      return;
+    }
+
+    if (!onNodeLogin) {
+      setError({
+        message: 'Use app account or Demo',
+        detail: 'Sign up / Log in with email and password above, or use "Enter as Guest (Demo)" below. Make sure the server is running (npm run dev or npm run start).',
+      });
       return;
     }
 
@@ -46,52 +36,12 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
     setError(null);
     setSuccessMsg('');
 
-    // When Supabase is not configured, use Node backend auth (if onNodeLogin was passed)
-    const useNodeAuth = !isAuthConfigured() && onNodeLogin;
-
     try {
-      if (useNodeAuth) {
-        const data = isSignUp
-          ? await nodeAuth.register(cleanEmail, cleanPass)
-          : await nodeAuth.login(cleanEmail, cleanPass);
-        onNodeLogin(data.user, data.token);
-        return;
-      }
-
-      if (!isAuthConfigured()) {
-        setError({
-          message: 'Use app account or Demo',
-          detail: 'Sign up with email and password above (app account), or use "Enter as Guest (Demo)" below. Make sure the server is running (npm run start).'
-        });
-        setLoading(false);
-        return;
-      }
-
-      if (!checkConfig()) {
-        setLoading(false);
-        return;
-      }
-
-      if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password: cleanPass
-        });
-        if (error) throw error;
-
-        if (data.user && !data.session) {
-          setSuccessMsg("Account created! Please check your email inbox to confirm registration.");
-          setIsSignUp(false);
-        } else {
-          setSuccessMsg("Account created! Logging you in...");
-        }
-      } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: cleanPass
-        });
-        if (error) throw error;
-      }
+      const data = isSignUp
+        ? await nodeAuth.register(cleanEmail, cleanPass)
+        : await nodeAuth.login(cleanEmail, cleanPass);
+      onNodeLogin(data.user, data.token);
+      if (isSignUp) setSuccessMsg('Account created! Logging you in...');
     } catch (err: any) {
       handleAuthError(err);
     } finally {
@@ -101,21 +51,15 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
 
   const handleAuthError = (err: any) => {
     console.error(err);
-    let msg = err.message || "Authentication failed.";
-    let detail = "";
-    
-    if (msg.includes("configuration") || msg.includes("URL")) {
-        detail = "Check your supabaseConfig.ts file.";
-    } else if (msg.includes("Invalid login credentials")) {
-        detail = isSignUp 
-          ? "Could not create user. Try a different email." 
-          : "User not found or wrong password. If you are new, please Sign Up first.";
-    } else if (msg.includes("rate limit")) {
-        detail = "Too many attempts. Please wait a moment.";
-    } else if (msg.includes("Email not confirmed")) {
-        detail = "Please check your inbox and verify your email address.";
+    const msg = err.message || 'Authentication failed.';
+    let detail = '';
+    if (msg.includes('Invalid login') || msg.includes('credentials')) {
+      detail = isSignUp ? 'Could not create user. Try a different email.' : 'User not found or wrong password. Sign Up first if you are new.';
+    } else if (msg.includes('rate limit')) {
+      detail = 'Too many attempts. Please wait a moment.';
+    } else if (err.message) {
+      detail = 'Make sure the server is running (npm run dev or npm run start).';
     }
-    
     setError({ message: msg, detail });
     setLoading(false);
   };
@@ -138,12 +82,9 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
           <p className="text-brand-100 text-sm">Real Estate Tracker</p>
         </div>
 
-        {/* When auth not configured, suggest Demo */}
-        {!isAuthConfigured() && (
-          <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl border border-white/30 text-center text-sm text-brand-100">
-            Use the form to <strong className="text-white">Sign up / Log in</strong> with the app account, or <strong className="text-white">Enter as Guest (Demo)</strong> below.
-          </div>
-        )}
+        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl border border-white/30 text-center text-sm text-brand-100">
+          Use the form to <strong className="text-white">Sign up / Log in</strong> with your account, or <strong className="text-white">Enter as Guest (Demo)</strong> below.
+        </div>
 
         {/* Auth Form */}
         <div className="bg-white/10 backdrop-blur-sm p-6 rounded-xl border border-white/20 space-y-4 shadow-2xl">
@@ -205,6 +146,8 @@ export const Login: React.FC<LoginProps> = ({ onDemoLogin, onNodeLogin }) => {
           )}
 
           <button 
+            type="button"
+            data-testid="auth-submit"
             onClick={handleEmailAuth}
             disabled={loading}
             className="w-full bg-white text-brand-700 py-3 rounded-lg font-bold shadow-lg flex items-center justify-center space-x-2 active:scale-95 disabled:opacity-50 transition-all"
