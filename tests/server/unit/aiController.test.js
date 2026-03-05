@@ -78,6 +78,10 @@ describe('aiController', () => {
 
     await handleAiRequest(req, res);
 
+    expect(generateTextStream).toHaveBeenCalledWith('test-key', {
+      prompt: 'hello',
+      systemInstruction: undefined,
+    });
     expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/event-stream');
     expect(res.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-cache');
     expect(res.setHeader).toHaveBeenCalledWith('Connection', 'keep-alive');

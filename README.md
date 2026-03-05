@@ -40,7 +40,8 @@ Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://test
 
 1. **התקנת חבילות:** `npm install`
 2. **משתני סביבה:** וודא שקיים `.env` עם לפחות:
-   - `DATABASE_URL` (למשל `file:./dev.db` ל-SQLite מקומי)
+   - `DATABASE_URL` (למשל Supabase pooler על פורט `6543`; ראו סעיף "Supabase + Prisma (stable flow)")
+   - `DIRECT_URL` (למשל Supabase direct על פורט `5432`; נדרש ל-migrate/introspection)
    - `GEMINI_API_KEY` (לפיצ'רים של AI)
 3. **מסד נתונים:** `npx prisma generate` ואז `npx prisma migrate deploy` (או `npx prisma db push` לפיתוח).
 4. **משתמש ל-seed:** צור משתמש אחת (הרשמה מהאפליקציה) או הוסף ידנית. אחר כך אפשר להריץ:  
@@ -68,6 +69,8 @@ Tests use [Vitest](https://vitest.dev/) and [React Testing Library](https://test
 ---
 
 ## Supabase + Prisma (stable flow)
+
+> **חשוב:** ההנחיות בסעיף זה מחליפות את הדוגמאות הישנות של SQLite במסמך. בפרויקט הנוכחי עובדים עם PostgreSQL/Supabase, ולכן יש להגדיר `DATABASE_URL` (pooler, פורט `6543`, `pgbouncer=true`) ו-`DIRECT_URL` (direct, פורט `5432`).
 
 ### 1) משתני סביבה נדרשים
 - `DATABASE_URL` = כתובת pooler של Supabase (פורט `6543`, עם `pgbouncer=true`) עבור runtime.

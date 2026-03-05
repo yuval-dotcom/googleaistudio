@@ -16,6 +16,8 @@ interface TestRunnerProps {
   onBack: () => void;
 }
 
+const STRESS_TEST_THRESHOLD_MS = 50;
+
 export const TestRunner: React.FC<TestRunnerProps> = ({ onBack }) => {
   const [results, setResults] = useState<TestResult[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -38,24 +40,36 @@ export const TestRunner: React.FC<TestRunnerProps> = ({ onBack }) => {
     ];
 
     const newResults: TestResult[] = [];
-
-    for (let i = 0; i < tests.length; i++) {
-      await new Promise((r) => setTimeout(r, 400));
-      const result = await tests[i]();
-      newResults.push(result);
-      setResults([...newResults]);
-      setProgress(((i + 1) / tests.length) * 100);
+    try {
+      for (let i = 0; i < tests.length; i++) {
+        await new Promise((r) => setTimeout(r, 400));
+        try {
+          const result = await tests[i]();
+          newResults.push(result);
+        } catch (error: unknown) {
+          const message = error instanceof Error ? error.message : 'Unexpected test error';
+          newResults.push({
+            name: tests[i].name || `Test #${i + 1}`,
+            passed: false,
+            message,
+            duration: 0,
+          });
+        }
+        setResults([...newResults]);
+        setProgress(((i + 1) / tests.length) * 100);
+      }
+    } finally {
+      setIsRunning(false);
     }
-
-    setIsRunning(false);
   };
 
   const testCurrencyConversion = async (): Promise<TestResult> => {
     const start = performance.now();
     try {
       const usdToNis = currencyService.convert(100, 'USD', 'NIS');
-      if (Math.abs(usdToNis - 100 * RATES['USD']) > 0.01) {
-        throw new Error(`USD->NIS failed. Expected 375, got ${usdToNis}`);
+      const expectedUsdToNis = 100 * RATES['USD'];
+      if (Math.abs(usdToNis - expectedUsdToNis) > 0.01) {
+        throw new Error(`USD->NIS failed. Expected ${expectedUsdToNis}, got ${usdToNis}`);
       }
 
       const nisToEur = currencyService.convert(405, 'NIS', 'EUR');
@@ -163,7 +177,7 @@ export const TestRunner: React.FC<TestRunnerProps> = ({ onBack }) => {
     const sum = massiveList.reduce((acc, curr) => acc + curr.amount, 0);
     const duration = performance.now() - start;
 
-    if (duration > 50) {
+    if (duration > STRESS_TEST_THRESHOLD_MS) {
       return { name: 'Stress Test (5k items)', passed: false, message: `Too slow: ${duration.toFixed(0)}ms`, duration };
     }
 
