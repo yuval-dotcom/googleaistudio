@@ -15,6 +15,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
 import alertRoutes from './routes/alertRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
+import { getUploadsDir } from './config/uploads.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -124,7 +125,7 @@ app.use('/api/alerts', requireAuth, alertRoutes);
 app.use('/api/bank-accounts', requireAuth, bankAccountRoutes);
 
 // Uploaded files (serve from project root uploads/)
-const uploadsPath = path.resolve(process.cwd(), 'uploads');
+const uploadsPath = getUploadsDir();
 app.use('/uploads', express.static(uploadsPath));
 
 // Static assets (Vite build output)

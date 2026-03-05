@@ -1,8 +1,9 @@
 import path from 'path';
 import fs from 'fs';
 import { randomUUID } from 'crypto';
+import { getUploadsDir } from '../config/uploads.js';
 
-const UPLOAD_DIR = path.resolve(process.cwd(), 'uploads');
+const UPLOAD_DIR = getUploadsDir();
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_EXT = ['.pdf', '.png', '.jpg', '.jpeg'];
 
