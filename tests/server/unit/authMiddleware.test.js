@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createToken, verifyToken, requireAuth } from './authMiddleware.js';
+import { createToken, verifyToken, requireAuth } from '../../../server/middleware/authMiddleware.js';
 
 describe('authMiddleware', () => {
   describe('createToken and verifyToken', () => {

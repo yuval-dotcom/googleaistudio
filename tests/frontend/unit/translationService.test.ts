@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { t, getDir } from './translationService';
-import type { Language } from '../types';
+import { t, getDir } from '../../../services/translationService';
+import type { Language } from '../../../types';
 
 describe('translationService', () => {
   describe('t', () => {

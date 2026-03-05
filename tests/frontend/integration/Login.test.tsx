@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { Login } from './Login';
+import { Login } from '../../../views/Login';
 
 const mockLogin = vi.fn();
 const mockRegister = vi.fn();
 
-vi.mock('../services/nodeAuthService', () => ({
+vi.mock('../../../services/nodeAuthService', () => ({
   login: (...args: unknown[]) => mockLogin(...args),
   register: (...args: unknown[]) => mockRegister(...args),
 }));

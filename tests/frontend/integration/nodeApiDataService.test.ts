@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { nodeApiDataService } from './nodeApiDataService';
-import * as nodeAuth from './nodeAuthService';
+import { nodeApiDataService } from '../../../services/nodeApiDataService';
+import * as nodeAuth from '../../../services/nodeAuthService';
 
-vi.mock('./nodeAuthService', () => ({
+vi.mock('../../../services/nodeAuthService', () => ({
   getToken: vi.fn(),
 }));
 
@@ -48,7 +48,7 @@ describe('nodeApiDataService', () => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
         ok: true,
         json: async () => [
-          { id: 't1', assetId: 'a1', date: '2024-01-01', amount: 1000, type: 'Income', description: 'Rent' },
+          { id: 't1', assetId: 'a1', date: '2024-01-01', amount: 1000, type: 'INCOME', description: 'Rent' },
         ],
       }));
       const list = await nodeApiDataService.getTransactions();

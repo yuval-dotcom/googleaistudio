@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { isRateLimitAllowed } from './rateLimiterService.js';
+import { isRateLimitAllowed } from '../../../server/services/rateLimiterService.js';
 
 describe('rateLimiterService', () => {
   beforeEach(() => {
@@ -11,7 +11,7 @@ describe('rateLimiterService', () => {
   });
 
   it('allows up to 30 requests in a minute', () => {
-    const ip = '10.0.0.1'; // unique IP so other tests do not affect count
+    const ip = '10.0.0.1';
     for (let i = 0; i < 30; i++) {
       expect(isRateLimitAllowed(ip)).toBe(true);
     }

@@ -6,7 +6,7 @@ import {
   register,
   login,
   getMe,
-} from './nodeAuthService';
+} from '../../../services/nodeAuthService';
 
 describe('nodeAuthService', () => {
   const mockStorage: Record<string, string> = {};

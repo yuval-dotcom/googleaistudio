@@ -28,15 +28,15 @@ export default defineConfig({
         test: {
           environment: 'jsdom',
           setupFiles: ['./vitest.setup.ts'],
-          include: ['**/*.{test,spec}.{ts,tsx}'],
-          exclude: ['server/**', 'node_modules/**'],
+          include: ['tests/frontend/**/*.{test,spec}.{ts,tsx}'],
+          exclude: ['node_modules/**'],
         },
       },
       {
         name: 'server',
         test: {
           environment: 'node',
-          include: ['server/**/*.{test,spec}.js'],
+          include: ['tests/server/**/*.{test,spec}.js'],
           exclude: ['node_modules/**'],
         },
       },
