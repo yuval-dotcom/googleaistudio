@@ -3,6 +3,7 @@ import fs from 'fs/promises';
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 200;
+const REQUEST_TIMEOUT_MS = Number(process.env.DURABLE_UPLOAD_TIMEOUT_MS || 30000);
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,16 +35,24 @@ export async function uploadToDurableStorage({ localFilePath, objectPath, mimeTy
   let lastError = null;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${serviceRoleKey}`,
-          apikey: serviceRoleKey,
-          'Content-Type': mimeType || 'application/octet-stream',
-          'x-upsert': 'true',
-        },
-        body: fileBuffer,
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+      let response;
+      try {
+        response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${serviceRoleKey}`,
+            apikey: serviceRoleKey,
+            'Content-Type': mimeType || 'application/octet-stream',
+            'x-upsert': 'true',
+          },
+          body: fileBuffer,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
       if (response.ok) {
         return { path: objectPath, url: publicUrl };
@@ -51,9 +60,15 @@ export async function uploadToDurableStorage({ localFilePath, objectPath, mimeTy
 
       const bodyText = await response.text();
       const err = new Error(`Durable upload failed (${response.status}): ${bodyText}`);
-      if (!RETRYABLE_STATUS.has(response.status)) throw err;
+      if (!RETRYABLE_STATUS.has(response.status)) {
+        err.nonRetryable = true;
+        throw err;
+      }
       lastError = err;
     } catch (error) {
+      if (error instanceof Error && error.nonRetryable) {
+        throw error;
+      }
       lastError = error instanceof Error ? error : new Error('Unknown durable upload error');
     }
 

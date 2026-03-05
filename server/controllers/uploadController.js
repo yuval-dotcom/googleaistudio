@@ -77,8 +77,8 @@ export async function handleUpload(req, res) {
       });
     } catch (error) {
       await cleanupTempFile(req.file.path);
-      const message = error instanceof Error ? error.message : 'Upload failed';
-      return res.status(502).json({ error: message });
+      console.error('Durable upload failed', error);
+      return res.status(502).json({ error: 'Upload failed' });
     }
   }
 
