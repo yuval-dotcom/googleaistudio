@@ -44,3 +44,16 @@ export async function listUsers() {
     orderBy: { createdAt: 'desc' },
   });
 }
+
+/** Reset password by email (admin flow). */
+export async function resetPasswordByEmail(email, newPassword) {
+  const emailNorm = email.trim().toLowerCase();
+  const existing = await prisma.user.findUnique({ where: { email: emailNorm } });
+  if (!existing) throw new Error('USER_NOT_FOUND');
+
+  const passwordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+  await prisma.user.update({
+    where: { email: emailNorm },
+    data: { passwordHash },
+  });
+}

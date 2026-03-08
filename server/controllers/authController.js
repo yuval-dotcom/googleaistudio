@@ -64,3 +64,34 @@ export async function listUsers(req, res) {
     res.status(500).json({ error: err.message || 'Server error' });
   }
 }
+
+/** Admin endpoint: reset user password by email (guarded by ADMIN_RESET_SECRET). */
+export async function adminResetPassword(req, res) {
+  const adminSecret = process.env.ADMIN_RESET_SECRET;
+  if (!adminSecret) {
+    return res.status(503).json({ error: 'Admin reset is not configured' });
+  }
+
+  const providedSecret = req.headers['x-admin-secret'] || req.body?.adminSecret;
+  if (!providedSecret || String(providedSecret) !== adminSecret) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  try {
+    const { email, newPassword } = req.body || {};
+    if (!email?.trim() || !newPassword) {
+      return res.status(400).json({ error: 'Email and newPassword are required' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    await authService.resetPasswordByEmail(email, newPassword);
+    return res.json({ ok: true });
+  } catch (err) {
+    if (err.message === 'USER_NOT_FOUND') {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+}
