@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapContainer, Marker, Popup, TileLayer } from 'react-leaflet';
+import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import type { Property } from '../types';
+import { getToken } from '../services/nodeAuthService';
 
 type GeocodedPoint = {
   propertyId: string;
@@ -10,7 +11,6 @@ type GeocodedPoint = {
   lon: number;
 };
 
-const GEOCODE_CACHE_KEY = 'assets_map_geocode_cache_v1';
 const markerIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -25,39 +25,44 @@ function normalizeAddress(address: string, country: string): string {
   return `${address || ''}, ${country || ''}`.trim();
 }
 
-function readCache(): Record<string, { lat: number; lon: number }> {
-  if (typeof window === 'undefined') return {};
-  try {
-    const raw = window.localStorage.getItem(GEOCODE_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function writeCache(cache: Record<string, { lat: number; lon: number }>) {
-  if (typeof window === 'undefined') return;
-  try {
-    window.localStorage.setItem(GEOCODE_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // Ignore cache persistence issues and keep map functional.
-  }
-}
-
 async function geocodeAddress(query: string): Promise<{ lat: number; lon: number } | null> {
-  const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (!Array.isArray(data) || data.length === 0) return null;
-  const first = data[0];
-  const lat = Number(first.lat);
-  const lon = Number(first.lon);
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-  return { lat, lon };
+  try {
+    const token = getToken();
+    const res = await fetch('/api/geocode', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ query }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const lat = Number(data?.lat);
+    const lon = Number(data?.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    return { lat, lon };
+  } catch {
+    return null;
+  }
 }
+
+const MapRecenter: React.FC<{ center: [number, number]; points: GeocodedPoint[] }> = ({ center, points }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (!points.length) {
+      map.setView(center, 4);
+      return;
+    }
+    if (points.length === 1) {
+      map.setView(center, 12);
+      return;
+    }
+    const bounds = L.latLngBounds(points.map((p) => [p.lat, p.lon] as [number, number]));
+    map.fitBounds(bounds, { padding: [24, 24] });
+  }, [map, center, points]);
+  return null;
+};
 
 interface AssetsMapProps {
   properties: Property[];
@@ -73,43 +78,38 @@ export const AssetsMap: React.FC<AssetsMapProps> = ({ properties, onSelectProper
     let cancelled = false;
 
     async function load() {
-      if (!properties.length) {
-        setPoints([]);
-        setFailedCount(0);
-        return;
-      }
       setIsLoading(true);
-      const cache = readCache();
-      const next: GeocodedPoint[] = [];
-      let failures = 0;
-
-      for (const property of properties) {
-        const query = normalizeAddress(property.address, property.country);
-        if (!query.trim()) {
-          failures += 1;
-          continue;
+      try {
+        if (!properties.length) {
+          setPoints([]);
+          setFailedCount(0);
+          return;
         }
 
-        const cached = cache[query];
-        if (cached) {
-          next.push({ propertyId: property.id, lat: cached.lat, lon: cached.lon });
-          continue;
+        const next: GeocodedPoint[] = [];
+        let failures = 0;
+
+        for (const property of properties) {
+          const query = normalizeAddress(property.address, property.country);
+          if (!query.trim()) {
+            failures += 1;
+            continue;
+          }
+
+          const hit = await geocodeAddress(query);
+          if (hit) {
+            next.push({ propertyId: property.id, lat: hit.lat, lon: hit.lon });
+          } else {
+            failures += 1;
+          }
         }
 
-        const hit = await geocodeAddress(query);
-        if (hit) {
-          cache[query] = hit;
-          next.push({ propertyId: property.id, lat: hit.lat, lon: hit.lon });
-        } else {
-          failures += 1;
-        }
+        if (cancelled) return;
+        setPoints(next);
+        setFailedCount(failures);
+      } finally {
+        if (!cancelled) setIsLoading(false);
       }
-
-      if (cancelled) return;
-      writeCache(cache);
-      setPoints(next);
-      setFailedCount(failures);
-      setIsLoading(false);
     }
 
     load();
@@ -143,6 +143,7 @@ export const AssetsMap: React.FC<AssetsMapProps> = ({ properties, onSelectProper
 
       <div className="h-72 rounded-lg overflow-hidden border border-gray-100">
         <MapContainer center={center} zoom={4} scrollWheelZoom className="h-full w-full">
+          <MapRecenter center={center} points={points} />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

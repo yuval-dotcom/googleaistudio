@@ -97,6 +97,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
     return Array.from(new Set(properties.map((p) => p.country).filter(Boolean))).sort();
   }, [properties]);
 
+  const performanceCurrency: CurrencyCode = useMemo(() => {
+    if (performanceCountry !== 'All') {
+      const sample = properties.find((p) => p.country === performanceCountry);
+      if (sample) return getCountryCurrency(sample.country, sample.currency);
+    }
+    return globalCurrency;
+  }, [performanceCountry, properties, globalCurrency]);
+
   const performanceData = useMemo(() => {
     const months = [];
     const now = new Date();
@@ -118,7 +126,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
         const prop = properties.find(p => p.id === t.propertyId);
         if (!prop) return;
         if (performanceCountry !== 'All' && prop.country !== performanceCountry) return;
-        const targetCurrency = getCountryCurrency(prop.country, prop.currency);
+        const targetCurrency =
+          performanceCountry === 'All'
+            ? performanceCurrency
+            : getCountryCurrency(prop.country, prop.currency);
         const convertedAmount = currencyService.convert(t.amount, prop.currency, targetCurrency);
         if (t.type === 'income') {
           months[mIdx].income += convertedAmount;
@@ -129,15 +140,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
     });
 
     return months;
-  }, [transactions, properties, performanceCountry, lang]);
+  }, [transactions, properties, performanceCountry, lang, performanceCurrency]);
 
-  const performanceCurrency: CurrencyCode = useMemo(() => {
-    if (performanceCountry !== 'All') {
-      const sample = properties.find((p) => p.country === performanceCountry);
-      if (sample) return getCountryCurrency(sample.country, sample.currency);
-    }
-    return globalCurrency;
-  }, [performanceCountry, properties, globalCurrency]);
+  const totalMyEquity = useMemo(() => {
+    return equityByCountry.reduce(
+      (sum, row) => sum + currencyService.convert(row.value, row.currency, globalCurrency),
+      0
+    );
+  }, [equityByCountry, globalCurrency]);
+
+  const monthlyCashFlow = useMemo(() => {
+    return monthlyCashFlowByCountry.reduce(
+      (sum, row) => sum + currencyService.convert(row.value, row.currency, globalCurrency),
+      0
+    );
+  }, [monthlyCashFlowByCountry, globalCurrency]);
 
   const handleGenerateInsight = async () => {
     if (properties.length === 0 || isAnalyzing) return;
@@ -152,7 +169,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
     if (properties.length === 0 || isAnalyzing) return;
     setIsAnalyzing(true);
     try {
-      const prompt = `Quick tactical summary (max 2 sentences) of this RE portfolio: ${properties.length} properties, ${totalMyEquity} equity, ${monthlyCashFlow} monthly cashflow. Focus on health and next steps. Language: ${lang === 'he' ? 'Hebrew' : 'English'}.`;
+      const prompt = `Quick tactical summary (max 2 sentences) of this RE portfolio: ${properties.length} properties, ${currencyService.format(totalMyEquity, globalCurrency)} equity, ${currencyService.format(monthlyCashFlow, globalCurrency)} monthly cashflow. Focus on health and next steps. Language: ${lang === 'he' ? 'Hebrew' : 'English'}.`;
       const result = await aiGenerate({ prompt, lang });
       setAiInsight(result.text || null);
     } catch (e) {

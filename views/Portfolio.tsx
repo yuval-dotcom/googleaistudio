@@ -102,7 +102,7 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
           className="px-4 py-2 rounded-xl text-xs font-bold bg-white border border-gray-200 text-gray-700 flex items-center gap-2"
         >
           <MapPin size={14} />
-          <span>{showMap ? 'Hide Map' : 'Show Map'}</span>
+          <span>{showMap ? t('hide_map', lang) : t('show_map', lang)}</span>
         </button>
       </div>
 

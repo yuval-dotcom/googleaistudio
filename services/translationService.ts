@@ -37,6 +37,8 @@ const dictionary: Dictionary = {
   'delete_property': { en: 'Delete Property', he: 'מחק נכס' },
   'filter_all': { en: 'All Types', he: 'כל הסוגים' },
   'active_assets': { en: 'Active Assets', he: 'נכסים פעילים' },
+  'show_map': { en: 'Show Map', he: 'הצג מפה' },
+  'hide_map': { en: 'Hide Map', he: 'הסתר מפה' },
 
   // Property Fields
   'address': { en: 'Address', he: 'כתובת' },
