@@ -106,7 +106,13 @@ export async function geocodeQuery(rawQuery) {
       cacheSetNegative(query);
       return null;
     }
-    const data = await res.json();
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      cacheSetNegative(query);
+      return null;
+    }
     if (!Array.isArray(data) || data.length === 0) {
       cacheSetNegative(query);
       return null;
