@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import markerIconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import type { Property } from '../types';
 import { getToken } from '../services/nodeAuthService';
 
@@ -12,14 +15,15 @@ type GeocodedPoint = {
 };
 
 const markerIcon = new L.Icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconUrl: markerIconUrl,
+  iconRetinaUrl: markerIconRetinaUrl,
+  shadowUrl: markerShadowUrl,
   iconSize: [25, 41],
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   shadowSize: [41, 41],
 });
+const GEOCODE_BATCH_SIZE = 5;
 
 function normalizeAddress(address: string, country: string): string {
   const addressPart = String(address || '').trim();
@@ -48,6 +52,33 @@ async function geocodeAddress(query: string): Promise<{ lat: number; lon: number
   } catch {
     return null;
   }
+}
+
+async function geocodeInBatches(properties: Property[]): Promise<{ next: GeocodedPoint[]; failures: number }> {
+  const next: GeocodedPoint[] = [];
+  let failures = 0;
+
+  for (let i = 0; i < properties.length; i += GEOCODE_BATCH_SIZE) {
+    const chunk = properties.slice(i, i + GEOCODE_BATCH_SIZE);
+    const results = await Promise.all(
+      chunk.map(async (property) => {
+        const query = normalizeAddress(property.address, property.country);
+        if (!query) return { propertyId: property.id, hit: null };
+        const hit = await geocodeAddress(query);
+        return { propertyId: property.id, hit };
+      })
+    );
+
+    results.forEach(({ propertyId, hit }) => {
+      if (hit) {
+        next.push({ propertyId, lat: hit.lat, lon: hit.lon });
+      } else {
+        failures += 1;
+      }
+    });
+  }
+
+  return { next, failures };
 }
 
 const MapRecenter: React.FC<{ center: [number, number]; points: GeocodedPoint[] }> = ({ center, points }) => {
@@ -89,23 +120,7 @@ export const AssetsMap: React.FC<AssetsMapProps> = ({ properties, onSelectProper
           return;
         }
 
-        const next: GeocodedPoint[] = [];
-        let failures = 0;
-
-        for (const property of properties) {
-          const query = normalizeAddress(property.address, property.country);
-          if (!query.trim()) {
-            failures += 1;
-            continue;
-          }
-
-          const hit = await geocodeAddress(query);
-          if (hit) {
-            next.push({ propertyId: property.id, lat: hit.lat, lon: hit.lon });
-          } else {
-            failures += 1;
-          }
-        }
+        const { next, failures } = await geocodeInBatches(properties);
 
         if (cancelled) return;
         setPoints(next);

@@ -20,6 +20,7 @@ const dictionary: Dictionary = {
   'performance': { en: 'Performance', he: 'ביצועים' },
   'portfolio_score': { en: 'Portfolio Score', he: 'ציון תיק נכסים' },
   'regions': { en: 'Regions', he: 'אזורים גיאוגרפיים' },
+  'by_country': { en: 'by Country', he: 'לפי מדינה' },
 
   // AI & Insights
   'ai_analyst': { en: 'AI Analyst', he: 'אנליסט בינה מלאכותית' },

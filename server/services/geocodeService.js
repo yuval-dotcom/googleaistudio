@@ -17,6 +17,9 @@ function normalizeQuery(raw) {
 }
 
 function cacheSet(key, value) {
+  if (geocodeCache.has(key)) {
+    geocodeCache.delete(key);
+  }
   if (geocodeCache.size >= MAX_CACHE_SIZE) {
     const oldestKey = geocodeCache.keys().next().value;
     if (oldestKey) geocodeCache.delete(oldestKey);
@@ -29,7 +32,12 @@ export async function geocodeQuery(rawQuery) {
   if (!query) return null;
 
   const cached = geocodeCache.get(query);
-  if (cached) return cached;
+  if (cached) {
+    // Promote to most recently used entry.
+    geocodeCache.delete(query);
+    geocodeCache.set(query, cached);
+    return cached;
+  }
 
   const existing = inflight.get(query);
   if (existing) return existing;

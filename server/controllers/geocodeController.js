@@ -15,8 +15,10 @@ export async function geocodeAddress(req, res) {
     return res.json(result);
   } catch (error) {
     if (error instanceof Error && error.code === 'GEOCODE_TIMEOUT') {
+      console.error('Geocode provider timeout', { code: error.code, error });
       return res.status(504).json({ error: 'Geocode provider timeout' });
     }
+    console.error('Geocode request failed', { code: error?.code, error });
     return res.status(502).json({ error: 'Geocode request failed' });
   }
 }

@@ -21,29 +21,28 @@ interface DashboardProps {
   setView: (v: ViewState) => void;
 }
 
+function normalizeCountry(country: string): string {
+  const raw = String(country || '').trim();
+  const normalized = raw.toLowerCase();
+  if (normalized === 'israel' || normalized === 'ישראל') return 'Israel';
+  if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USA';
+  if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'Germany';
+  return raw;
+}
+
+function getCountryCurrency(country: string, fallback: CurrencyCode): CurrencyCode {
+  const normalized = normalizeCountry(country);
+  if (normalized === 'Israel') return 'NIS';
+  if (normalized === 'USA') return 'USD';
+  if (normalized === 'Germany') return 'EUR';
+  return fallback || 'USD';
+}
+
 export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, globalCurrency, setGlobalCurrency, lang, setLang, setView }) => {
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAiGate, setShowAiGate] = useState(false);
   const [performanceCountry, setPerformanceCountry] = useState<string>('All');
-
-  const normalizeCountry = (country: string): string => {
-    const raw = String(country || '').trim();
-    const normalized = raw.toLowerCase();
-    if (normalized === 'israel' || normalized === 'ישראל') return 'Israel';
-    if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USA';
-    if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'Germany';
-    return raw;
-  };
-
-  const getCountryCurrency = (country: string, fallback: CurrencyCode): CurrencyCode => {
-    const normalized = normalizeCountry(country);
-    if (normalized === 'Israel') return 'NIS';
-    if (normalized === 'USA') return 'USD';
-    if (normalized === 'Germany') return 'EUR';
-    if (fallback === 'NIS' || fallback === 'USD' || fallback === 'EUR') return fallback;
-    return 'USD';
-  };
 
   const expiringLeases = useMemo(() => notificationService.getExpiringLeases(properties), [properties]);
 
@@ -167,6 +166,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
       0
     );
   }, [monthlyCashFlowByCountry, globalCurrency]);
+  const visibleCashFlowRows = monthlyCashFlowByCountry.slice(0, 2);
+  const remainingCashFlowCount = Math.max(monthlyCashFlowByCountry.length - visibleCashFlowRows.length, 0);
 
   const handleGenerateInsight = async () => {
     if (properties.length === 0 || isAnalyzing) return;
@@ -303,7 +304,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full translate-x-10 -translate-y-10" />
         <div className="flex items-center gap-2 opacity-80 mb-1">
           <TrendingUp size={16} />
-          <span className="text-xs font-bold tracking-tight">{t('total_equity', lang)} by Country</span>
+          <span className="text-xs font-bold tracking-tight">{t('total_equity', lang)} {t('by_country', lang)}</span>
         </div>
         <div className="space-y-1 mb-6">
           {equityByCountry.map((row) => (
@@ -315,9 +316,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
         </div>
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
           <div>
-            <p className="text-[9px] text-brand-100 uppercase font-black opacity-70 tracking-wider mb-1">{t('monthly_cash_flow', lang)} by Country</p>
+            <p className="text-[9px] text-brand-100 uppercase font-black opacity-70 tracking-wider mb-1">{t('monthly_cash_flow', lang)} {t('by_country', lang)}</p>
             <div className="space-y-1">
-              {monthlyCashFlowByCountry.slice(0, 2).map((row) => (
+              {visibleCashFlowRows.map((row) => (
                 <div key={row.country} className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-bold">{row.country}</span>
                   <span className="text-[10px] font-bold">
@@ -326,6 +327,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
                   {row.value >= 0 ? <ArrowUpRight size={12} className="text-green-300" /> : <ArrowDownRight size={12} className="text-red-300" />}
                 </div>
               ))}
+              {remainingCashFlowCount > 0 && (
+                <p className="text-[10px] font-bold text-brand-100 opacity-80">+{remainingCashFlowCount} more</p>
+              )}
             </div>
           </div>
           <div className="text-right">
@@ -385,6 +389,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
               value={performanceCountry}
               onChange={(e) => setPerformanceCountry(e.target.value)}
               className="text-[9px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 font-bold"
+              aria-label="Performance country"
             >
               <option value="All">All</option>
               {allCountries.map((country) => (
