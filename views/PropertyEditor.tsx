@@ -222,7 +222,7 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <select value={country} onChange={e => setCountry(e.target.value)} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm font-medium"><option value="USA">USA</option><option value="Israel">Israel</option><option value="UK">UK</option></select>
+              <select value={country} onChange={e => setCountry(e.target.value)} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm font-medium"><option value="USA">USA</option><option value="Israel">Israel</option><option value="UK">UK</option><option value="Germany">Germany</option></select>
               <select value={type} onChange={e => setType(e.target.value as PropertyType)} className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-sm font-medium">
                 <option value="Residential">Residential</option><option value="Commercial">Commercial</option><option value="Shop">Shop</option>
               </select>
