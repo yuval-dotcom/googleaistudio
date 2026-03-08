@@ -5,6 +5,7 @@ import { Property, Transaction, CurrencyCode, PropertyType, Language, ViewState 
 import { Building2, Plus, ArrowRight, Home, MapPin, Layers, Briefcase } from 'lucide-react';
 import { currencyService } from '../services/currencyService';
 import { t } from '../services/translationService';
+import { AssetsMap } from '../components/AssetsMap';
 
 interface PortfolioProps {
   properties: Property[];
@@ -19,6 +20,7 @@ interface PortfolioProps {
 export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, onRefresh, globalCurrency, onSelectProperty, lang, onAddProperty }) => {
   const [filterType, setFilterType] = useState<PropertyType | 'All'>('All');
   const [ownerFilter, setOwnerFilter] = useState<string>('All');
+  const [showMap, setShowMap] = useState(false);
 
   const getOwnerName = (property: Property): string => {
     if (property.holdingCompany?.trim()) return property.holdingCompany.trim();
@@ -93,6 +95,20 @@ export const Portfolio: React.FC<PortfolioProps> = ({ properties, transactions, 
           <span>{t('add_property', lang)}</span>
         </button>
       </header>
+
+      <div className="mb-4 flex items-center justify-between">
+        <button
+          onClick={() => setShowMap((prev) => !prev)}
+          className="px-4 py-2 rounded-xl text-xs font-bold bg-white border border-gray-200 text-gray-700 flex items-center gap-2"
+        >
+          <MapPin size={14} />
+          <span>{showMap ? t('hide_map', lang) : t('show_map', lang)}</span>
+        </button>
+      </div>
+
+      {showMap && (
+        <AssetsMap properties={filteredProperties} onSelectProperty={onSelectProperty} />
+      )}
 
       {/* Filter Bar */}
       <div className="flex overflow-x-auto space-x-2 gap-2 mb-6 no-scrollbar pb-2">

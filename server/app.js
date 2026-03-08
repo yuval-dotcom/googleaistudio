@@ -15,6 +15,7 @@ import uploadRoutes from './routes/uploadRoutes.js';
 import dealRoutes from './routes/dealRoutes.js';
 import alertRoutes from './routes/alertRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
+import geocodeRoutes from './routes/geocodeRoutes.js';
 import { getUploadsDir } from './config/uploads.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -97,6 +98,9 @@ app.get('/api', (req, res) => {
       upload: {
         'POST /api/upload': 'Upload file (multipart file; returns { url, id, name, path, uploadedAt })',
       },
+      geocode: {
+        'POST /api/geocode': 'Geocode address via server-side cache (body: query)',
+      },
       alerts: {
         'GET /api/alerts': 'List alerts for current user (lease expiries and possible payment delays)',
       },
@@ -120,6 +124,7 @@ app.use('/api/assets/:assetId/loans', requireAuth, loanRoutes);
 app.use('/api/assets/:assetId/ownerships', requireAuth, ownershipRoutes);
 app.use('/api/transactions', requireAuth, transactionRoutes);
 app.use('/api/upload', requireAuth, uploadRoutes);
+app.use('/api/geocode', requireAuth, geocodeRoutes);
 app.use('/api/deals', requireAuth, dealRoutes);
 app.use('/api/alerts', requireAuth, alertRoutes);
 app.use('/api/bank-accounts', requireAuth, bankAccountRoutes);
