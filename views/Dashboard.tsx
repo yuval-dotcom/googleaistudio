@@ -27,11 +27,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
   const [showAiGate, setShowAiGate] = useState(false);
   const [performanceCountry, setPerformanceCountry] = useState<string>('All');
 
+  const normalizeCountry = (country: string): string => {
+    const raw = String(country || '').trim();
+    const normalized = raw.toLowerCase();
+    if (normalized === 'israel' || normalized === 'ישראל') return 'Israel';
+    if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USA';
+    if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'Germany';
+    return raw;
+  };
+
   const getCountryCurrency = (country: string, fallback: CurrencyCode): CurrencyCode => {
-    const normalized = String(country || '').trim().toLowerCase();
-    if (normalized === 'israel' || normalized === 'ישראל') return 'NIS';
-    if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USD';
-    if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'EUR';
+    const normalized = normalizeCountry(country);
+    if (normalized === 'Israel') return 'NIS';
+    if (normalized === 'USA') return 'USD';
+    if (normalized === 'Germany') return 'EUR';
     if (fallback === 'NIS' || fallback === 'USD' || fallback === 'EUR') return fallback;
     return 'USD';
   };
@@ -41,17 +50,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
   const equityByCountry = useMemo(() => {
     const map: Record<string, { currency: CurrencyCode; value: number }> = {};
     properties.forEach((p) => {
-      const targetCurrency = getCountryCurrency(p.country, p.currency);
+      const countryKey = normalizeCountry(p.country);
+      const targetCurrency = getCountryCurrency(countryKey, p.currency);
       const marketValueLocal = currencyService.convert(p.marketValue, p.currency, targetCurrency);
       const loanBalanceLocal = currencyService.convert(p.loanBalance || 0, p.currency, targetCurrency);
       const propEquity = marketValueLocal - loanBalanceLocal;
       const myPartnerRecord = p.partners?.find((partner) => partner.hasAccess);
       const myPercentage = myPartnerRecord ? myPartnerRecord.percentage : 100;
       const myEquity = propEquity * (myPercentage / 100);
-      if (!map[p.country]) {
-        map[p.country] = { currency: targetCurrency, value: 0 };
+      if (!map[countryKey]) {
+        map[countryKey] = { currency: targetCurrency, value: 0 };
       }
-      map[p.country].value += myEquity;
+      map[countryKey].value += myEquity;
     });
     return Object.entries(map)
       .map(([country, data]) => ({ country, currency: data.currency, value: data.value }))
@@ -66,12 +76,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
     recent.forEach((t) => {
       const prop = properties.find(p => p.id === t.propertyId);
       if (!prop) return;
-      const targetCurrency = getCountryCurrency(prop.country, prop.currency);
+      const countryKey = normalizeCountry(prop.country);
+      const targetCurrency = getCountryCurrency(countryKey, prop.currency);
       const convertedAmount = currencyService.convert(t.amount, prop.currency, targetCurrency);
-      if (!map[prop.country]) {
-        map[prop.country] = { currency: targetCurrency, value: 0 };
+      if (!map[countryKey]) {
+        map[countryKey] = { currency: targetCurrency, value: 0 };
       }
-      map[prop.country].value += t.type === 'income' ? convertedAmount : -convertedAmount;
+      map[countryKey].value += t.type === 'income' ? convertedAmount : -convertedAmount;
     });
     return Object.entries(map)
       .map(([country, data]) => ({ country, currency: data.currency, value: data.value }))
@@ -81,12 +92,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
   const countryData = useMemo(() => {
     const map: Record<string, { currency: CurrencyCode; value: number }> = {};
     properties.forEach(p => {
-      const targetCurrency = getCountryCurrency(p.country, p.currency);
+      const countryKey = normalizeCountry(p.country);
+      const targetCurrency = getCountryCurrency(countryKey, p.currency);
       const val = currencyService.convert(p.marketValue, p.currency, targetCurrency);
-      if (!map[p.country]) {
-        map[p.country] = { currency: targetCurrency, value: 0 };
+      if (!map[countryKey]) {
+        map[countryKey] = { currency: targetCurrency, value: 0 };
       }
-      map[p.country].value += val;
+      map[countryKey].value += val;
     });
     return Object.entries(map)
       .map(([country, data]) => ({ name: country, currency: data.currency, value: data.value }))
@@ -94,12 +106,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
   }, [properties]);
 
   const allCountries = useMemo(() => {
-    return Array.from(new Set(properties.map((p) => p.country).filter(Boolean))).sort();
+    return Array.from(new Set(properties.map((p) => normalizeCountry(p.country)).filter(Boolean))).sort();
   }, [properties]);
 
   const performanceCurrency: CurrencyCode = useMemo(() => {
     if (performanceCountry !== 'All') {
-      const sample = properties.find((p) => p.country === performanceCountry);
+      const sample = properties.find((p) => normalizeCountry(p.country) === performanceCountry);
       if (sample) return getCountryCurrency(sample.country, sample.currency);
     }
     return globalCurrency;
@@ -125,7 +137,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
       if (mIdx !== -1) {
         const prop = properties.find(p => p.id === t.propertyId);
         if (!prop) return;
-        if (performanceCountry !== 'All' && prop.country !== performanceCountry) return;
+        if (performanceCountry !== 'All' && normalizeCountry(prop.country) !== performanceCountry) return;
         const targetCurrency =
           performanceCountry === 'All'
             ? performanceCurrency

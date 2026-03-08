@@ -22,7 +22,10 @@ const markerIcon = new L.Icon({
 });
 
 function normalizeAddress(address: string, country: string): string {
-  return `${address || ''}, ${country || ''}`.trim();
+  const addressPart = String(address || '').trim();
+  if (!addressPart) return '';
+  const countryPart = String(country || '').trim();
+  return countryPart ? `${addressPart}, ${countryPart}` : addressPart;
 }
 
 async function geocodeAddress(query: string): Promise<{ lat: number; lon: number } | null> {

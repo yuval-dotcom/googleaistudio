@@ -1,6 +1,13 @@
 const geocodeCache = new Map();
 const inflight = new Map();
 const MAX_CACHE_SIZE = 500;
+const GEOCODE_TIMEOUT_MS = 5000;
+
+function makeGeocodeTimeoutError() {
+  const err = new Error('Geocode request timed out');
+  err.code = 'GEOCODE_TIMEOUT';
+  return err;
+}
 
 function normalizeQuery(raw) {
   return String(raw || '')
@@ -29,12 +36,29 @@ export async function geocodeQuery(rawQuery) {
 
   const request = (async () => {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(query)}`;
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'RE-Investor-Pro/1.0',
-      },
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GEOCODE_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(url, {
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': 'RE-Investor-Pro/1.0',
+        },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      if (
+        (error instanceof Error && error.name === 'AbortError') ||
+        controller.signal.aborted
+      ) {
+        throw makeGeocodeTimeoutError();
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
     if (!res.ok) return null;
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -46,7 +70,12 @@ export async function geocodeQuery(rawQuery) {
     cacheSet(query, hit);
     return hit;
   })()
-    .catch(() => null)
+    .catch((error) => {
+      if (error instanceof Error && error.code === 'GEOCODE_TIMEOUT') {
+        throw error;
+      }
+      return null;
+    })
     .finally(() => {
       inflight.delete(query);
     });

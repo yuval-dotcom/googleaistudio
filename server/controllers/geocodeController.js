@@ -6,10 +6,17 @@ export async function geocodeAddress(req, res) {
     return res.status(400).json({ error: 'query is required' });
   }
 
-  const result = await geocodeQuery(query);
-  if (!result) {
-    return res.status(404).json({ error: 'Address not found' });
-  }
+  try {
+    const result = await geocodeQuery(query);
+    if (!result) {
+      return res.status(404).json({ error: 'Address not found' });
+    }
 
-  return res.json(result);
+    return res.json(result);
+  } catch (error) {
+    if (error instanceof Error && error.code === 'GEOCODE_TIMEOUT') {
+      return res.status(504).json({ error: 'Geocode provider timeout' });
+    }
+    return res.status(502).json({ error: 'Geocode request failed' });
+  }
 }
