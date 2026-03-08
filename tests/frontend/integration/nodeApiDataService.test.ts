@@ -71,4 +71,33 @@ describe('nodeApiDataService', () => {
       expect(list).toEqual([]);
     });
   });
+
+  describe('updateProperty', () => {
+    it('sends country in update payload', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({}),
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await nodeApiDataService.updateProperty({
+        id: 'a1',
+        userId: 'u1',
+        address: 'New Address',
+        country: 'Germany',
+        type: 'Commercial',
+        currency: 'EUR',
+        purchasePrice: 100,
+        marketValue: 120,
+        incomeTaxRate: 0,
+        propertyTaxRate: 0,
+      } as any);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [, init] = fetchMock.mock.calls[0];
+      const body = JSON.parse(String(init.body));
+      expect(body.country).toBe('Germany');
+      expect(body.name).toBe('New Address');
+    });
+  });
 });

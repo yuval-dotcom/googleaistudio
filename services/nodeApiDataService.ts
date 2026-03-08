@@ -196,6 +196,7 @@ export const nodeApiDataService = {
       body: JSON.stringify({
         name: property.address,
         type: property.type,
+        country: property.country,
         purchasePrice: property.purchasePrice,
         currentValue: property.marketValue,
       }),
