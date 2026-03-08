@@ -212,8 +212,8 @@ const App: React.FC = () => {
   };
 
   return (
-    <div dir={getDir(lang)} className="h-screen w-full max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative flex flex-col font-sans">
-      <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth">
+    <div dir={getDir(lang)} className="h-[100dvh] w-full max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative flex flex-col font-sans">
+      <main className="flex-1 overflow-y-auto no-scrollbar scroll-smooth pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         {loading ? (
           <div className="h-full flex flex-col items-center justify-center bg-brand-600 text-white">
             <Loader2 className="animate-spin mb-4" size={32} />

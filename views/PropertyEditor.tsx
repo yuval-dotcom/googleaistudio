@@ -162,8 +162,8 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-50 pb-32">
-      <div className="bg-white p-4 border-b border-gray-200 sticky top-0 z-10 flex items-center justify-between">
+    <div className="h-full flex flex-col bg-gray-50">
+      <div className="bg-white p-4 pt-[calc(1rem+env(safe-area-inset-top))] border-b border-gray-200 sticky top-0 z-10 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <button onClick={onCancel} className="p-2 -ml-2 text-gray-500 hover:bg-gray-100 rounded-full"><ArrowLeft size={20} /></button>
           <h1 className="font-bold text-lg">{property ? t('edit_property', lang) : t('add_property', lang)}</h1>
@@ -186,7 +186,7 @@ export const PropertyEditor: React.FC<PropertyEditorProps> = ({ property, onSave
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 pb-[calc(2rem+env(safe-area-inset-bottom))] space-y-6 no-scrollbar">
         {errors.length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex gap-3"><AlertTriangle className="text-red-500 shrink-0" size={20} /><div className="text-xs text-red-600 font-bold">{errors.join(', ')}</div></div>
         )}
