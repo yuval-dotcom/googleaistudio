@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { Card } from '../components/Card';
 import { Property, Transaction, CurrencyCode, ViewState, Language } from '../types';
-import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ArrowUpRight, ArrowDownRight, TrendingUp, Activity, Globe, Settings, Sparkles, Loader2, RefreshCw, Calendar } from 'lucide-react';
 import { currencyService } from '../services/currencyService';
 import { t } from '../services/translationService';
@@ -25,38 +25,77 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
   const [aiInsight, setAiInsight] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showAiGate, setShowAiGate] = useState(false);
+  const [performanceCountry, setPerformanceCountry] = useState<string>('All');
+
+  const getCountryCurrency = (country: string, fallback: CurrencyCode): CurrencyCode => {
+    const normalized = String(country || '').trim().toLowerCase();
+    if (normalized === 'israel' || normalized === 'ישראל') return 'NIS';
+    if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USD';
+    if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'EUR';
+    if (fallback === 'NIS' || fallback === 'USD' || fallback === 'EUR') return fallback;
+    return 'USD';
+  };
 
   const expiringLeases = useMemo(() => notificationService.getExpiringLeases(properties), [properties]);
 
-  const totalMyEquity = useMemo(() => properties.reduce((sum, p) => {
-    const marketValueGlobal = currencyService.convert(p.marketValue, p.currency, globalCurrency);
-    const loanBalanceGlobal = currencyService.convert(p.loanBalance || 0, p.currency, globalCurrency);
-    const propEquity = marketValueGlobal - loanBalanceGlobal;
-    const myPartnerRecord = p.partners?.find(partner => partner.hasAccess);
-    const myPercentage = myPartnerRecord ? myPartnerRecord.percentage : 100; 
-    return sum + (propEquity * (myPercentage / 100));
-  }, 0), [properties, globalCurrency]);
-  
-  const monthlyCashFlow = useMemo(() => {
+  const equityByCountry = useMemo(() => {
+    const map: Record<string, { currency: CurrencyCode; value: number }> = {};
+    properties.forEach((p) => {
+      const targetCurrency = getCountryCurrency(p.country, p.currency);
+      const marketValueLocal = currencyService.convert(p.marketValue, p.currency, targetCurrency);
+      const loanBalanceLocal = currencyService.convert(p.loanBalance || 0, p.currency, targetCurrency);
+      const propEquity = marketValueLocal - loanBalanceLocal;
+      const myPartnerRecord = p.partners?.find((partner) => partner.hasAccess);
+      const myPercentage = myPartnerRecord ? myPartnerRecord.percentage : 100;
+      const myEquity = propEquity * (myPercentage / 100);
+      if (!map[p.country]) {
+        map[p.country] = { currency: targetCurrency, value: 0 };
+      }
+      map[p.country].value += myEquity;
+    });
+    return Object.entries(map)
+      .map(([country, data]) => ({ country, currency: data.currency, value: data.value }))
+      .sort((a, b) => b.value - a.value);
+  }, [properties]);
+
+  const monthlyCashFlowByCountry = useMemo(() => {
     const last30Days = new Date();
     last30Days.setDate(last30Days.getDate() - 30);
     const recent = transactions.filter(t => new Date(t.date) >= last30Days);
-    return recent.reduce((acc, t) => {
+    const map: Record<string, { currency: CurrencyCode; value: number }> = {};
+    recent.forEach((t) => {
       const prop = properties.find(p => p.id === t.propertyId);
-      const txCurrency = prop ? prop.currency : 'USD'; 
-      const convertedAmount = currencyService.convert(t.amount, txCurrency, globalCurrency);
-      return t.type === 'income' ? acc + convertedAmount : acc - convertedAmount;
-    }, 0);
-  }, [transactions, properties, globalCurrency]);
+      if (!prop) return;
+      const targetCurrency = getCountryCurrency(prop.country, prop.currency);
+      const convertedAmount = currencyService.convert(t.amount, prop.currency, targetCurrency);
+      if (!map[prop.country]) {
+        map[prop.country] = { currency: targetCurrency, value: 0 };
+      }
+      map[prop.country].value += t.type === 'income' ? convertedAmount : -convertedAmount;
+    });
+    return Object.entries(map)
+      .map(([country, data]) => ({ country, currency: data.currency, value: data.value }))
+      .sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+  }, [transactions, properties]);
 
   const countryData = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { currency: CurrencyCode; value: number }> = {};
     properties.forEach(p => {
-      const val = currencyService.convert(p.marketValue, p.currency, globalCurrency);
-      map[p.country] = (map[p.country] || 0) + val;
+      const targetCurrency = getCountryCurrency(p.country, p.currency);
+      const val = currencyService.convert(p.marketValue, p.currency, targetCurrency);
+      if (!map[p.country]) {
+        map[p.country] = { currency: targetCurrency, value: 0 };
+      }
+      map[p.country].value += val;
     });
-    return Object.keys(map).map(name => ({ name, value: map[name] }));
-  }, [properties, globalCurrency]);
+    return Object.entries(map)
+      .map(([country, data]) => ({ name: country, currency: data.currency, value: data.value }))
+      .sort((a, b) => b.value - a.value);
+  }, [properties]);
+
+  const allCountries = useMemo(() => {
+    return Array.from(new Set(properties.map((p) => p.country).filter(Boolean))).sort();
+  }, [properties]);
 
   const performanceData = useMemo(() => {
     const months = [];
@@ -77,8 +116,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
       const mIdx = months.findIndex(m => m.month === txDate.getMonth() && m.year === txDate.getFullYear());
       if (mIdx !== -1) {
         const prop = properties.find(p => p.id === t.propertyId);
-        const txCurrency = prop ? prop.currency : 'USD';
-        const convertedAmount = currencyService.convert(t.amount, txCurrency, globalCurrency);
+        if (!prop) return;
+        if (performanceCountry !== 'All' && prop.country !== performanceCountry) return;
+        const targetCurrency = getCountryCurrency(prop.country, prop.currency);
+        const convertedAmount = currencyService.convert(t.amount, prop.currency, targetCurrency);
         if (t.type === 'income') {
           months[mIdx].income += convertedAmount;
         } else {
@@ -88,7 +129,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
     });
 
     return months;
-  }, [transactions, properties, globalCurrency, lang]);
+  }, [transactions, properties, performanceCountry, lang]);
+
+  const performanceCurrency: CurrencyCode = useMemo(() => {
+    if (performanceCountry !== 'All') {
+      const sample = properties.find((p) => p.country === performanceCountry);
+      if (sample) return getCountryCurrency(sample.country, sample.currency);
+    }
+    return globalCurrency;
+  }, [performanceCountry, properties, globalCurrency]);
 
   const handleGenerateInsight = async () => {
     if (properties.length === 0 || isAnalyzing) return;
@@ -225,15 +274,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full translate-x-10 -translate-y-10" />
         <div className="flex items-center gap-2 opacity-80 mb-1">
           <TrendingUp size={16} />
-          <span className="text-xs font-bold tracking-tight">{t('total_equity', lang)}</span>
+          <span className="text-xs font-bold tracking-tight">{t('total_equity', lang)} by Country</span>
         </div>
-        <h2 className="text-4xl font-bold tracking-tighter mb-6">{currencyService.format(totalMyEquity, globalCurrency)}</h2>
+        <div className="space-y-1 mb-6">
+          {equityByCountry.map((row) => (
+            <div key={row.country} className="flex items-center justify-between text-sm">
+              <span className="font-bold opacity-90">{row.country}</span>
+              <span className="font-black">{currencyService.format(row.value, row.currency)}</span>
+            </div>
+          ))}
+        </div>
         <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
           <div>
-            <p className="text-[9px] text-brand-100 uppercase font-black opacity-70 tracking-wider mb-1">{t('monthly_cash_flow', lang)}</p>
-            <div className="flex items-center gap-1">
-              <span className="font-bold text-lg">{currencyService.format(Math.abs(monthlyCashFlow), globalCurrency)}</span>
-              {monthlyCashFlow >= 0 ? <ArrowUpRight size={14} className="text-green-300" /> : <ArrowDownRight size={14} className="text-red-300" />}
+            <p className="text-[9px] text-brand-100 uppercase font-black opacity-70 tracking-wider mb-1">{t('monthly_cash_flow', lang)} by Country</p>
+            <div className="space-y-1">
+              {monthlyCashFlowByCountry.slice(0, 2).map((row) => (
+                <div key={row.country} className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-bold">{row.country}</span>
+                  <span className="text-[10px] font-bold">
+                    {currencyService.format(Math.abs(row.value), row.currency)}
+                  </span>
+                  {row.value >= 0 ? <ArrowUpRight size={12} className="text-green-300" /> : <ArrowDownRight size={12} className="text-red-300" />}
+                </div>
+              ))}
             </div>
           </div>
           <div className="text-right">
@@ -269,33 +332,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
              <Globe size={14} className="text-blue-500" />
              <h3 className="font-black text-[9px] text-gray-400 uppercase tracking-widest">{t('regions', lang)}</h3>
            </div>
-           <div className="h-24 w-full mb-3">
-             <ResponsiveContainer width="100%" height="100%">
-               <RePieChart>
-                 <Pie 
-                   data={countryData} 
-                   innerRadius={20} 
-                   outerRadius={38} 
-                   paddingAngle={5} 
-                   dataKey="value"
-                 >
-                   {countryData.map((e, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                 </Pie>
-                 <Tooltip 
-                    formatter={(val: number) => currencyService.format(val, globalCurrency)}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px' }}
-                 />
-               </RePieChart>
-             </ResponsiveContainer>
-           </div>
-           <div className="space-y-1 max-h-[60px] overflow-y-auto no-scrollbar">
+           <div className="space-y-1 max-h-[140px] overflow-y-auto no-scrollbar mt-2">
              {countryData.map((item, i) => (
                <div key={item.name} className="flex items-center justify-between gap-1">
                  <div className="flex items-center gap-1.5 min-w-0">
                     <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
                     <span className="text-[8px] font-bold text-gray-600 truncate">{item.name}</span>
                  </div>
-                 <span className="text-[8px] font-black text-gray-400 shrink-0">{currencyService.format(item.value, globalCurrency)}</span>
+                 <span className="text-[8px] font-black text-gray-400 shrink-0">{currencyService.format(item.value, item.currency)}</span>
                </div>
              ))}
            </div>
@@ -303,9 +347,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
 
         {/* Performance Chart */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 flex flex-col min-h-[140px]">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2">
             <Activity size={14} className="text-brand-500" />
             <h3 className="font-black text-[9px] text-gray-400 uppercase tracking-widest">{t('performance', lang)}</h3>
+            </div>
+            <select
+              value={performanceCountry}
+              onChange={(e) => setPerformanceCountry(e.target.value)}
+              className="text-[9px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 font-bold"
+            >
+              <option value="All">All</option>
+              {allCountries.map((country) => (
+                <option key={country} value={country}>{country}</option>
+              ))}
+            </select>
           </div>
           <div className="flex-1 w-full mt-1">
              <ResponsiveContainer width="100%" height="100%">
@@ -314,7 +370,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
                  <Tooltip 
                     cursor={{ fill: 'transparent' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', fontSize: '10px', fontWeight: 'bold' }}
-                    formatter={(val: number) => currencyService.format(val, globalCurrency)}
+                    formatter={(val: number) => currencyService.format(val, performanceCurrency)}
                  />
                  <Bar dataKey="income" fill="#10b981" radius={[2, 2, 0, 0]} barSize={6} />
                  <Bar dataKey="expense" fill="#ef4444" radius={[2, 2, 0, 0]} barSize={6} />
