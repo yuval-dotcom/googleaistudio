@@ -10,6 +10,7 @@ import { generate as aiGenerate } from '../services/aiApiService';
 import { notificationService } from '../services/notificationService';
 import { getAiConsent, setAiConsent } from '../services/aiConsent';
 import { AiPrivacyGate } from '../components/AiPrivacyGate';
+import { normalizeCountry } from '../services/countryUtils';
 
 interface DashboardProps {
   properties: Property[];
@@ -21,21 +22,12 @@ interface DashboardProps {
   setView: (v: ViewState) => void;
 }
 
-function normalizeCountry(country: string): string {
-  const raw = String(country || '').trim();
-  const normalized = raw.toLowerCase();
-  if (normalized === 'israel' || normalized === 'ישראל') return 'Israel';
-  if (normalized === 'usa' || normalized === 'united states' || normalized === 'ארצות הברית' || normalized === 'ארהב') return 'USA';
-  if (normalized === 'germany' || normalized === 'גרמניה' || normalized === 'deutschland') return 'Germany';
-  return raw;
-}
-
 function getCountryCurrency(country: string, fallback: CurrencyCode): CurrencyCode {
   const normalized = normalizeCountry(country);
   if (normalized === 'Israel') return 'NIS';
   if (normalized === 'USA') return 'USD';
   if (normalized === 'Germany') return 'EUR';
-  return fallback || 'USD';
+  return fallback;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, globalCurrency, setGlobalCurrency, lang, setLang, setView }) => {

@@ -2,6 +2,8 @@ const geocodeCache = new Map();
 const inflight = new Map();
 const MAX_CACHE_SIZE = 500;
 const GEOCODE_TIMEOUT_MS = 5000;
+const POSITIVE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const NEGATIVE_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function makeGeocodeTimeoutError() {
   const err = new Error('Geocode request timed out');
@@ -27,16 +29,49 @@ function cacheSet(key, value) {
   geocodeCache.set(key, value);
 }
 
+function cacheSetPositive(key, lat, lon) {
+  cacheSet(key, {
+    kind: 'positive',
+    lat,
+    lon,
+    expiresAt: Date.now() + POSITIVE_CACHE_TTL_MS,
+  });
+}
+
+function cacheSetNegative(key) {
+  cacheSet(key, {
+    kind: 'negative',
+    expiresAt: Date.now() + NEGATIVE_CACHE_TTL_MS,
+  });
+}
+
+function getCachedResult(key) {
+  const entry = geocodeCache.get(key);
+  if (!entry) return { hit: false, value: null };
+
+  if (entry.expiresAt <= Date.now()) {
+    geocodeCache.delete(key);
+    return { hit: false, value: null };
+  }
+
+  // Promote to most recently used entry.
+  geocodeCache.delete(key);
+  geocodeCache.set(key, entry);
+
+  if (entry.kind === 'negative') {
+    return { hit: true, value: null };
+  }
+
+  return { hit: true, value: { lat: entry.lat, lon: entry.lon } };
+}
+
 export async function geocodeQuery(rawQuery) {
   const query = normalizeQuery(rawQuery);
   if (!query) return null;
 
-  const cached = geocodeCache.get(query);
-  if (cached) {
-    // Promote to most recently used entry.
-    geocodeCache.delete(query);
-    geocodeCache.set(query, cached);
-    return cached;
+  const cached = getCachedResult(query);
+  if (cached.hit) {
+    return cached.value;
   }
 
   const existing = inflight.get(query);
@@ -67,15 +102,24 @@ export async function geocodeQuery(rawQuery) {
       clearTimeout(timeoutId);
     }
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      cacheSetNegative(query);
+      return null;
+    }
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) return null;
+    if (!Array.isArray(data) || data.length === 0) {
+      cacheSetNegative(query);
+      return null;
+    }
     const first = data[0];
     const lat = Number(first.lat);
     const lon = Number(first.lon);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      cacheSetNegative(query);
+      return null;
+    }
     const hit = { lat, lon };
-    cacheSet(query, hit);
+    cacheSetPositive(query, lat, lon);
     return hit;
   })()
     .catch((error) => {
