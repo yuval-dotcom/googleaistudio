@@ -22,8 +22,6 @@ import { Loader2, Database, RefreshCcw } from 'lucide-react';
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>(ViewState.LOGIN);
   const [user, setUser] = useState<any | null>(null);
-  const [properties, setProperties] = useState<Property[]>([]);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [globalCurrency, setGlobalCurrency] = useState<CurrencyCode>('NIS');
   const [lang, setLang] = useState<Language>('en'); 
   const [loading, setLoading] = useState(true);
@@ -36,9 +34,10 @@ const App: React.FC = () => {
   const queryClient = useQueryClient();
 
   const {
-    data: propertiesData = [],
+    data: properties = [],
     error: propertiesError,
     isError: isPropertiesError,
+    isFetching: isPropertiesFetching,
   } = useQuery({
     queryKey: ['properties', { isDemo, userId: user?.id }],
     queryFn: () => activeService.getProperties(),
@@ -46,9 +45,10 @@ const App: React.FC = () => {
   });
 
   const {
-    data: transactionsData = [],
+    data: transactions = [],
     error: transactionsError,
     isError: isTransactionsError,
+    isFetching: isTransactionsFetching,
   } = useQuery({
     queryKey: ['transactions', { isDemo, userId: user?.id }],
     queryFn: () => activeService.getTransactions(),
@@ -75,14 +75,6 @@ const App: React.FC = () => {
   }, [globalCurrency]);
 
   useEffect(() => {
-    setProperties(propertiesData);
-  }, [propertiesData]);
-
-  useEffect(() => {
-    setTransactions(transactionsData);
-  }, [transactionsData]);
-
-  useEffect(() => {
     if (!isPropertiesError || !propertiesError) return;
     console.error('Properties fetch error:', propertiesError);
     const err = propertiesError as any;
@@ -96,9 +88,10 @@ const App: React.FC = () => {
     console.error('Transactions fetch error:', transactionsError);
   }, [isTransactionsError, transactionsError]);
 
+  const isRefreshing = isPropertiesFetching || isTransactionsFetching;
+
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;
-    setLoading(true);
     setDbError(null);
     try {
       await Promise.all([
@@ -107,8 +100,6 @@ const App: React.FC = () => {
       ]);
     } catch (err: any) {
       console.error('Data refresh failed:', err);
-    } finally {
-      setLoading(false);
     }
   }, [user, isDemo, queryClient]);
 
@@ -193,7 +184,14 @@ const App: React.FC = () => {
           lang={lang} 
           service={activeService}
           onEdit={() => { setEditingProperty(selectedProperty); setView(ViewState.PROPERTY_EDIT); }}
-          onUpdate={(p) => { setProperties(prev => prev.map(item => item.id === p.id ? p : item)); setSelectedProperty(p); }}
+          onUpdate={(p) => {
+            queryClient.setQueryData<Property[] | undefined>(
+              ['properties', { isDemo, userId: user?.id }],
+              (prev = []) =>
+                prev.map((item) => (item.id === p.id ? (p as Property) : item)),
+            );
+            setSelectedProperty(p);
+          }}
         /> : null;
       case ViewState.PROPERTY_EDIT:
         return <PropertyEditor 

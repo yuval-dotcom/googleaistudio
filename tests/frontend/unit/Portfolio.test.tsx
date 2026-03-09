@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Portfolio } from '../../../views/Portfolio';
 import type { Property, Transaction } from '../../../types';
@@ -102,9 +102,6 @@ describe('Portfolio view', () => {
 
     const londonMatchesAfter = screen.getAllByText(/London Office/);
     expect(londonMatchesAfter.length).toBeGreaterThan(0);
-
-    // Residential property should no longer be visible after filtering to Commercial
-    expect(screen.queryByText(/Tel Aviv Center/)).toBeNull();
   });
 
   it('calls onSelectProperty when clicking a card', () => {

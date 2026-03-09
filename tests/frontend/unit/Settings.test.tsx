@@ -54,8 +54,10 @@ describe('Settings view', () => {
       />,
     );
 
-    expect(screen.getByText(/Settings/i)).toBeInTheDocument();
-    const logoutButtons = screen.getAllByRole('button', { name: /log out/i });
+    await screen.findByText(/Settings/i);
+    const logoutButtons = await screen.findAllByRole('button', {
+      name: /log out/i,
+    });
     expect(logoutButtons.length).toBeGreaterThan(0);
   });
 
@@ -70,8 +72,9 @@ describe('Settings view', () => {
       />,
     );
 
-    const [logoutButton] = screen.getAllByRole('button', { name: /log out/i });
-    fireEvent.click(logoutButton);
+    const logoutButtons = screen.getAllByRole('button', { name: /log out/i });
+    expect(logoutButtons.length).toBeGreaterThan(0);
+    fireEvent.click(logoutButtons[logoutButtons.length - 1]);
     expect(onLogout).toHaveBeenCalled();
   });
 
@@ -93,7 +96,9 @@ describe('Settings view', () => {
     fireEvent.click(addButton);
 
     await waitFor(() => {
-      expect(service.saveCompany).toHaveBeenCalled();
+      expect(service.saveCompany).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'NewCo', userOwnership: 100 }),
+      );
     });
   });
 });
