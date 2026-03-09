@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Property, Transaction, CurrencyCode, ViewState, Language, Company } from './types';
 import { Dashboard } from './views/Dashboard';
 import { Portfolio } from './views/Portfolio';
@@ -23,7 +24,6 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any | null>(null);
   const [properties, setProperties] = useState<Property[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [globalCurrency, setGlobalCurrency] = useState<CurrencyCode>('NIS');
   const [lang, setLang] = useState<Language>('en'); 
   const [loading, setLoading] = useState(true);
@@ -33,6 +33,32 @@ const App: React.FC = () => {
   const [dbError, setDbError] = useState<string | null>(null);
 
   const activeService = isDemo ? mockDataService : nodeApiDataService;
+  const queryClient = useQueryClient();
+
+  const {
+    data: propertiesData = [],
+  } = useQuery({
+    queryKey: ['properties', { isDemo }],
+    queryFn: () => activeService.getProperties(),
+    enabled: !!user || isDemo,
+    onError: (err: any) => {
+      console.error('Properties fetch error:', err);
+      if (!isDemo && err.code === '42P01') {
+        setDbError('MISSING_TABLES');
+      }
+    },
+  });
+
+  const {
+    data: transactionsData = [],
+  } = useQuery({
+    queryKey: ['transactions', { isDemo }],
+    queryFn: () => activeService.getTransactions(),
+    enabled: !!user || isDemo,
+    onError: (err: any) => {
+      console.error('Transactions fetch error:', err);
+    },
+  });
 
   useEffect(() => {
     try {
@@ -53,26 +79,29 @@ const App: React.FC = () => {
     }
   }, [globalCurrency]);
 
+  useEffect(() => {
+    setProperties(propertiesData);
+  }, [propertiesData]);
+
+  useEffect(() => {
+    setTransactions(transactionsData);
+  }, [transactionsData]);
+
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;
     setLoading(true);
     setDbError(null);
     try {
-      const [props, txs, comps] = await Promise.all([
-        activeService.getProperties(),
-        activeService.getTransactions(),
-        activeService.getCompanies()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['properties'] }),
+        queryClient.invalidateQueries({ queryKey: ['transactions'] }),
       ]);
-      setProperties(props);
-      setTransactions(txs);
-      setCompanies(comps);
     } catch (err: any) {
-      console.error("Data refresh failed:", err);
-      if (!isDemo && err.code === '42P01') setDbError('MISSING_TABLES');
+      console.error('Data refresh failed:', err);
     } finally {
       setLoading(false);
     }
-  }, [user, isDemo, activeService]);
+  }, [user, isDemo, queryClient]);
 
   useEffect(() => {
     getMe().then((me) => {
