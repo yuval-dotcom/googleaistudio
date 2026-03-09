@@ -9,7 +9,8 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-const ASSETS_SHEET = 'נכסים קרן טל';
+const ASSETS_SHEET = 'נכסים מאוחד (2)';
+const LEGACY_ASSETS_SHEET = 'נכסים קרן טל';
 const INCOME_SHEET = 'הכנסות ';
 
 // Column indices (row 0 = headers, data from row 1)
@@ -84,9 +85,12 @@ async function main() {
     process.exit(1);
   }
 
-  const assetSheet = wb.Sheets[ASSETS_SHEET] || wb.Sheets['נכסים קרן טל'];
+  const assetSheet = wb.Sheets[ASSETS_SHEET] || wb.Sheets[LEGACY_ASSETS_SHEET];
   if (!assetSheet) {
-    console.error('Sheet "נכסים קרן טל" not found. Available:', wb.SheetNames.join(', '));
+    console.error(
+      `Sheet "${ASSETS_SHEET}" (or "${LEGACY_ASSETS_SHEET}") not found. Available:`,
+      wb.SheetNames.join(', ')
+    );
     process.exit(1);
   }
 

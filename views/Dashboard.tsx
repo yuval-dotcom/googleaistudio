@@ -46,8 +46,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ properties, transactions, 
       const marketValueLocal = currencyService.convert(p.marketValue, p.currency, targetCurrency);
       const loanBalanceLocal = currencyService.convert(p.loanBalance || 0, p.currency, targetCurrency);
       const propEquity = marketValueLocal - loanBalanceLocal;
-      const myPartnerRecord = p.partners?.find((partner) => partner.hasAccess);
-      const myPercentage = myPartnerRecord ? myPartnerRecord.percentage : 100;
+      const myPartnerRecord = p.partners?.find(
+        (partner) => partner.hasAccess && partner.name === 'Me'
+      );
+      const myPercentage = myPartnerRecord?.percentage ?? 100;
       const myEquity = propEquity * (myPercentage / 100);
       if (!map[countryKey]) {
         map[countryKey] = { currency: targetCurrency, value: 0 };
