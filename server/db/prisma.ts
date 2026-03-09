@@ -8,9 +8,14 @@ const prismaClientSingleton = () => {
   }
 
   // In non-production, enable error and warn logs by default.
-  // Set PRISMA_LOG_QUERIES=true to also log all queries.
+  // Set PRISMA_LOG_QUERIES=true/1/yes to also log all queries.
   const log: ('query' | 'error' | 'warn')[] = ['error', 'warn'];
-  if (process.env.PRISMA_LOG_QUERIES) {
+  const logQueriesFlag = process.env.PRISMA_LOG_QUERIES?.toLowerCase();
+  if (
+    logQueriesFlag === 'true' ||
+    logQueriesFlag === '1' ||
+    logQueriesFlag === 'yes'
+  ) {
     log.push('query');
   }
 

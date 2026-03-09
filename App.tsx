@@ -125,7 +125,7 @@ const App: React.FC = () => {
       setUser(null);
       setView(ViewState.LOGIN);
     }
-    await queryClient.clear();
+    queryClient.clear();
   };
 
   const renderView = () => {
