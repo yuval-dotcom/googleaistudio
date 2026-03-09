@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { requireAuth } from './middleware/authMiddleware.js';
+import { errorHandler } from './middleware/errorHandler.js';
 import aiRouter from './routes/aiRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import assetRoutes from './routes/assetRoutes.js';
@@ -155,4 +156,7 @@ app.get('*', (req, res) => {
     `);
   }
 });
+
+// Centralized error handling (after all routes and the SPA fallback)
+app.use(errorHandler);
 

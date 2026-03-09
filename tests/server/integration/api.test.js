@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import { app } from '../../../server/app.js';
 
@@ -32,6 +32,26 @@ describe('API', () => {
     it('GET /api/transactions returns 401 without token', async () => {
       const res = await request(app).get('/api/transactions');
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe('Fallback route and error handling', () => {
+    it('serves SPA fallback for unknown non-API route', async () => {
+      const res = await request(app).get('/some/random/path');
+      // In production build this will be index.html; in tests we at least expect HTML content or a 503 with HTML.
+      expect([200, 503]).toContain(res.status);
+      expect(res.text).toMatch(/<!DOCTYPE html>/i);
+    });
+
+    it('keeps existing JSON shape for auth validation errors', async () => {
+      const res = await request(app)
+        .post('/api/auth/register')
+        .set('Content-Type', 'application/json')
+        .send({});
+      expect(res.status).toBe(400);
+      expect(typeof res.body).toBe('object');
+      // The controller still returns { error: string } and should not be wrapped differently by errorHandler
+      expect(typeof res.body.error).toBe('string');
     });
   });
 
