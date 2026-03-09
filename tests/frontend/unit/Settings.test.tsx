@@ -61,7 +61,7 @@ describe('Settings view', () => {
     expect(logoutButtons.length).toBeGreaterThan(0);
   });
 
-  it('calls onLogout when logout button clicked', () => {
+  it('calls onLogout when logout button clicked', async () => {
     render(
       <Settings
         onBack={onBack}
@@ -72,7 +72,9 @@ describe('Settings view', () => {
       />,
     );
 
-    const logoutButtons = screen.getAllByRole('button', { name: /log out/i });
+    const logoutButtons = await screen.findAllByRole('button', {
+      name: /log out/i,
+    });
     expect(logoutButtons.length).toBeGreaterThan(0);
     fireEvent.click(logoutButtons[logoutButtons.length - 1]);
     expect(onLogout).toHaveBeenCalled();
@@ -89,10 +91,12 @@ describe('Settings view', () => {
       />,
     );
 
-    const [nameInput] = screen.getAllByPlaceholderText(/Company Name/i);
+    const [nameInput] = await screen.findAllByPlaceholderText(/Company Name/i);
     fireEvent.change(nameInput, { target: { value: 'NewCo' } });
 
-    const [addButton] = screen.getAllByRole('button', { name: /add company/i });
+    const [addButton] = await screen.findAllByRole('button', {
+      name: /add company/i,
+    });
     fireEvent.click(addButton);
 
     await waitFor(() => {

@@ -88,8 +88,6 @@ const App: React.FC = () => {
     console.error('Transactions fetch error:', transactionsError);
   }, [isTransactionsError, transactionsError]);
 
-  const isRefreshing = isPropertiesFetching || isTransactionsFetching;
-
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;
     setDbError(null);
@@ -127,6 +125,7 @@ const App: React.FC = () => {
       setUser(null);
       setView(ViewState.LOGIN);
     }
+    await queryClient.clear();
   };
 
   const renderView = () => {
