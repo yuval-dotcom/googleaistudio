@@ -37,27 +37,22 @@ const App: React.FC = () => {
 
   const {
     data: propertiesData = [],
+    error: propertiesError,
+    isError: isPropertiesError,
   } = useQuery({
-    queryKey: ['properties', { isDemo }],
+    queryKey: ['properties', { isDemo, userId: user?.id }],
     queryFn: () => activeService.getProperties(),
     enabled: !!user || isDemo,
-    onError: (err: any) => {
-      console.error('Properties fetch error:', err);
-      if (!isDemo && err.code === '42P01') {
-        setDbError('MISSING_TABLES');
-      }
-    },
   });
 
   const {
     data: transactionsData = [],
+    error: transactionsError,
+    isError: isTransactionsError,
   } = useQuery({
-    queryKey: ['transactions', { isDemo }],
+    queryKey: ['transactions', { isDemo, userId: user?.id }],
     queryFn: () => activeService.getTransactions(),
     enabled: !!user || isDemo,
-    onError: (err: any) => {
-      console.error('Transactions fetch error:', err);
-    },
   });
 
   useEffect(() => {
@@ -86,6 +81,20 @@ const App: React.FC = () => {
   useEffect(() => {
     setTransactions(transactionsData);
   }, [transactionsData]);
+
+  useEffect(() => {
+    if (!isPropertiesError || !propertiesError) return;
+    console.error('Properties fetch error:', propertiesError);
+    const err = propertiesError as any;
+    if (!isDemo && err && err.code === '42P01') {
+      setDbError('MISSING_TABLES');
+    }
+  }, [isPropertiesError, propertiesError, isDemo]);
+
+  useEffect(() => {
+    if (!isTransactionsError || !transactionsError) return;
+    console.error('Transactions fetch error:', transactionsError);
+  }, [isTransactionsError, transactionsError]);
 
   const refreshData = useCallback(async () => {
     if (!user && !isDemo) return;

@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "start": "node dist-server/server.js",
     "build:start": "npm run build && npm run build:server && npm run start",
-    "dev:server": "ts-node --project tsconfig.server.json server/server.ts",
+    "dev:server": "ts-node --esm --project tsconfig.server.json server/server.ts",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",

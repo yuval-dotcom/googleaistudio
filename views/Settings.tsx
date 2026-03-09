@@ -137,7 +137,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack, onSave, onLogout, la
                className="w-full p-2.5 bg-white border border-brand-200 rounded-lg text-xs font-bold"
              />
              <div className="flex gap-2">
-               <div className="flex-1 relative">
+              <div className="flex-1 relative">
                   <input 
                     type="number" 
                     placeholder="Your % Share" 
@@ -150,6 +150,7 @@ export const Settings: React.FC<SettingsProps> = ({ onBack, onSave, onLogout, la
                <button 
                 onClick={handleAddCompany} 
                 disabled={isSavingCompany}
+                aria-label="Add company"
                 className="bg-brand-600 text-white px-4 rounded-lg shadow-sm active:scale-95 transition-transform disabled:opacity-50"
                >
                  {isSavingCompany ? <Loader2 size={16} className="animate-spin" /> : <Plus size={18} />}

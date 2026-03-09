@@ -6,8 +6,12 @@ export function errorHandler(
   err: unknown,
   req: Request,
   res: Response,
-  _next: NextFunction,
+  next: NextFunction,
 ) {
+  if (res.headersSent) {
+    return next(err as any);
+  }
+
   // Basic logging for now; can be swapped with a real logger
   // eslint-disable-next-line no-console
   console.error(err);

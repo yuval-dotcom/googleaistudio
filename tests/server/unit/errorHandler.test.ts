@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { errorHandler } from '../../../server/middleware/errorHandler.ts';
 import { HttpError } from '../../../server/errors/HttpError.ts';
 
@@ -10,10 +10,19 @@ function makeRes() {
 }
 
 describe('errorHandler middleware', () => {
-  const originalEnv = process.env.NODE_ENV;
+  let originalEnv: string | undefined;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    originalEnv = process.env.NODE_ENV;
+    consoleErrorSpy = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalEnv;
+    consoleErrorSpy.mockRestore();
   });
 
   it('returns HttpError status and message', () => {
@@ -43,7 +52,6 @@ describe('errorHandler middleware', () => {
       success: false,
       message: 'boom',
     });
-    process.env.NODE_ENV = originalEnv;
   });
 
   it('returns generic message in production', () => {
@@ -59,7 +67,6 @@ describe('errorHandler middleware', () => {
       success: false,
       message: 'Internal server error',
     });
-    process.env.NODE_ENV = originalEnv;
   });
 });
 

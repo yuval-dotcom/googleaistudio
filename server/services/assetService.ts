@@ -1,5 +1,6 @@
 import type { Prisma, AssetType } from '@prisma/client';
 import { prisma } from '../db/prisma.js';
+import { HttpError } from '../errors/HttpError.js';
 
 const includeAll = {
   ownerships: true,
@@ -8,10 +9,14 @@ const includeAll = {
   transactions: true,
 } as const;
 
-export type AssetWithRelations = Prisma.AssetGetPayload<{ include: typeof includeAll }>;
+export type AssetWithRelations = Prisma.AssetGetPayload<{
+  include: typeof includeAll;
+}>;
 
 function normalizeAssetType(type: unknown): AssetType {
-  if (!type) return 'COMMERCIAL';
+  if (!type) {
+    throw HttpError.badRequest('Asset type is required');
+  }
   const t = String(type).toLowerCase();
   if (t === 'residential') return 'RESIDENTIAL';
   if (t === 'commercial') return 'COMMERCIAL';
@@ -19,12 +24,22 @@ function normalizeAssetType(type: unknown): AssetType {
   if (t === 'land') return 'LAND';
   if (t === 'foreign') return 'FOREIGN';
   if (t === 'pension' || t === 'pension_fund') return 'PENSION_FUND';
-  return 'COMMERCIAL';
+  throw HttpError.badRequest(`Unsupported asset type: ${String(type)}`);
 }
 
-export async function getAllAssets(userId?: string | null): Promise<AssetWithRelations[]> {
+function requireUserId(userId: string | null | undefined): string {
+  if (!userId) {
+    throw HttpError.unauthorized('userId is required for tenant-scoped access');
+  }
+  return userId;
+}
+
+export async function getAllAssets(
+  userId?: string | null,
+): Promise<AssetWithRelations[]> {
+  const scopedUserId = requireUserId(userId ?? null);
   const assets = await prisma.asset.findMany({
-    where: userId != null ? { userId } : {},
+    where: { userId: scopedUserId },
     include: includeAll,
     orderBy: { updatedAt: 'desc' },
   });
@@ -65,9 +80,10 @@ export async function createAsset(
   data: CreateAssetInput,
   userId: string | null = null,
 ): Promise<AssetWithRelations> {
+  const scopedUserId = requireUserId(userId);
   const asset = await prisma.asset.create({
     data: {
-      ...(userId && { userId }),
+      userId: scopedUserId,
       name: data.name,
       type: normalizeAssetType(data.type),
       country: data.country ?? undefined,
@@ -98,7 +114,8 @@ export async function updateAsset(
   data: UpdateAssetInput,
   userId: string | null = null,
 ): Promise<AssetWithRelations> {
-  const where = userId != null ? { id, userId } : { id };
+  const scopedUserId = requireUserId(userId);
+  const where = { id, userId: scopedUserId };
   const asset = await prisma.asset.update({
     where,
     data: {
@@ -145,7 +162,8 @@ export async function deleteAsset(
   id: string,
   userId: string | null = null,
 ): Promise<void> {
-  const where = userId != null ? { id, userId } : { id };
+  const scopedUserId = requireUserId(userId);
+  const where = { id, userId: scopedUserId };
   await prisma.asset.delete({
     where,
   });

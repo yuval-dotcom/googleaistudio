@@ -26,6 +26,10 @@ describe('Portfolio view', () => {
   const onRefresh = vi.fn();
   const onAddProperty = vi.fn();
 
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   const properties: Property[] = [
     makeProps({
       id: 'p1',
@@ -98,6 +102,9 @@ describe('Portfolio view', () => {
 
     const londonMatchesAfter = screen.getAllByText(/London Office/);
     expect(londonMatchesAfter.length).toBeGreaterThan(0);
+
+    // Residential property should no longer be visible after filtering to Commercial
+    expect(screen.queryByText(/Tel Aviv Center/)).toBeNull();
   });
 
   it('calls onSelectProperty when clicking a card', () => {

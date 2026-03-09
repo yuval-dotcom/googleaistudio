@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { PropertyDetail } from '../../../views/PropertyDetail';
 import type { Property, Transaction } from '../../../types';
@@ -44,6 +44,10 @@ describe('PropertyDetail view', () => {
     addOwnership: vi.fn(),
     addLoan: vi.fn(),
   };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it('renders basic property info', () => {
     render(

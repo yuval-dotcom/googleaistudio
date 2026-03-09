@@ -41,7 +41,19 @@ export async function projection(
   next: NextFunction,
 ) {
   try {
-    const years = Math.min(Number(req.query.years) || 5, 20);
+    const rawYears = Array.isArray(req.query.years)
+      ? req.query.years[0]
+      : req.query.years;
+    let years = parseInt(String(rawYears ?? ''), 10);
+    if (Number.isNaN(years)) {
+      years = 5;
+    }
+    if (years < 1) {
+      years = 1;
+    }
+    if (years > 20) {
+      years = 20;
+    }
     const data = await financeService.getProjection(
       req.params.id,
       req.userId ?? null,

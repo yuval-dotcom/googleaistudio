@@ -116,7 +116,7 @@ app.get('/api', (req, res) => {
 });
 
 // API routes (before static so /api/* is handled here)
-app.use('/api/ai', aiRouter);
+app.use('/api/ai', requireAuth, aiRouter);
 app.use('/api/auth', authRoutes);
 app.use('/api/assets', requireAuth, assetRoutes);
 app.use('/api/assets/:assetId/units', requireAuth, unitRoutes);
@@ -132,12 +132,31 @@ app.use('/api/bank-accounts', requireAuth, bankAccountRoutes);
 
 // Uploaded files (serve from project root uploads/)
 const uploadsPath = getUploadsDir();
-app.use('/uploads', express.static(uploadsPath));
+app.get('/uploads/:filename', requireAuth, (req, res, next) => {
+  try {
+    const filename = path.basename(String(req.params.filename || ''));
+    if (!filename || filename.startsWith('.')) {
+      return res.status(400).json({ error: 'Invalid file name' });
+    }
+    const filePath = path.join(uploadsPath, filename);
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    res.sendFile(filePath);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // Static assets (Vite build output)
 if (hasDist) {
   app.use(express.static(distPath));
 }
+
+// API 404 handler so unknown API routes do not fall through to SPA HTML
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ error: 'Not found' });
+});
 
 // SPA fallback – serve index.html for all remaining routes (or helpful message if no build)
 app.get('*', (req, res) => {

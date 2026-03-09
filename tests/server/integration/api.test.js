@@ -43,6 +43,14 @@ describe('API', () => {
       expect(res.text).toMatch(/<!DOCTYPE html>/i);
     });
 
+    it('returns JSON 404 for unknown API routes', async () => {
+      const res = await request(app).get('/api/does-not-exist');
+      expect(res.status).toBe(404);
+      expect(res.headers['content-type']).toMatch(/application\/json/i);
+      expect(typeof res.body).toBe('object');
+      expect(typeof res.body.error).toBe('string');
+    });
+
     it('keeps existing JSON shape for auth validation errors', async () => {
       const res = await request(app)
         .post('/api/auth/register')
