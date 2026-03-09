@@ -39,75 +39,99 @@ app.get('/api', (req, res) => {
     baseUrl: `${req.protocol}://${req.get('host')}`,
     endpoints: {
       auth: {
-        'POST /api/auth/register': 'Register (body: email, password, name?) → { user, token }',
-        'POST /api/auth/login': 'Login (body: email, password) → { user, token }',
-        'GET /api/auth/me': 'Current user (Header: Authorization Bearer <token>)',
+        'POST /api/auth/register':
+          'Register (body: email, password, name?) \u2192 { user, token }',
+        'POST /api/auth/login':
+          'Login (body: email, password) \u2192 { user, token }',
+        'GET /api/auth/me':
+          'Current user (Header: Authorization Bearer <token>)',
         'GET /api/auth/users': 'List all users (dev only; 404 in production)',
       },
       ai: {
-        'POST /api/ai': 'Generate AI text or stream (body: prompt, systemInstruction?, stream?)',
+        'POST /api/ai':
+          'Generate AI text or stream (body: prompt, systemInstruction?, stream?)',
       },
       assets: {
         'GET /api/assets': 'List all assets',
-        'GET /api/assets/:id': 'Get one asset (with units, ownerships, loans, transactions)',
-        'GET /api/assets/:id/projection': '5-year cash flow projection (query: years?)',
-        'GET /api/assets/:id/ownership-income': 'Income per ownership entity',
-        'POST /api/assets': 'Create asset (body: name, type, purchaseYear?, purchasePrice?, currentValue?)',
+        'GET /api/assets/:id':
+          'Get one asset (with units, ownerships, loans, transactions)',
+        'GET /api/assets/:id/projection':
+          '5-year cash flow projection (query: years?)',
+        'GET /api/assets/:id/ownership-income':
+          'Income per ownership entity',
+        'POST /api/assets':
+          'Create asset (body: name, type, purchaseYear?, purchasePrice?, currentValue?)',
         'PUT /api/assets/:id': 'Update asset',
         'DELETE /api/assets/:id': 'Delete asset',
       },
       units: {
         'GET /api/assets/:assetId/units': 'List units of an asset',
         'GET /api/assets/:assetId/units/:unitId': 'Get one unit',
-        'POST /api/assets/:assetId/units': 'Create unit (body: description, sizeSqm?, status?)',
+        'POST /api/assets/:assetId/units':
+          'Create unit (body: description, sizeSqm?, status?)',
         'PUT /api/assets/:assetId/units/:unitId': 'Update unit',
         'DELETE /api/assets/:assetId/units/:unitId': 'Delete unit',
       },
       contracts: {
         'GET /api/units/:unitId/contracts': 'List contracts of a unit',
         'GET /api/units/:unitId/contracts/:contractId': 'Get one contract',
-        'POST /api/units/:unitId/contracts': 'Create contract (body: monthlyRent, tenantName?, startDate?, endDate?, fileUrl?)',
+        'POST /api/units/:unitId/contracts':
+          'Create contract (body: monthlyRent, tenantName?, startDate?, endDate?, fileUrl?)',
         'PUT /api/units/:unitId/contracts/:contractId': 'Update contract',
         'DELETE /api/units/:unitId/contracts/:contractId': 'Delete contract',
       },
       loans: {
         'GET /api/assets/:assetId/loans': 'List loans of an asset',
         'GET /api/assets/:assetId/loans/:loanId': 'Get one loan',
-        'POST /api/assets/:assetId/loans': 'Create loan (body: originalAmount, currentBalance, monthlyPayment, principalPayment, interestPayment)',
+        'POST /api/assets/:assetId/loans':
+          'Create loan (body: originalAmount, currentBalance, monthlyPayment, principalPayment, interestPayment)',
         'PUT /api/assets/:assetId/loans/:loanId': 'Update loan',
         'DELETE /api/assets/:assetId/loans/:loanId': 'Delete loan',
       },
       ownerships: {
-        'GET /api/assets/:assetId/ownerships': 'List ownerships of an asset',
+        'GET /api/assets/:assetId/ownerships':
+          'List ownerships of an asset',
         'GET /api/assets/:assetId/ownerships/:ownershipId': 'Get one ownership',
-        'POST /api/assets/:assetId/ownerships': 'Create ownership (body: entityName, percentage)',
+        'POST /api/assets/:assetId/ownerships':
+          'Create ownership (body: entityName, percentage)',
         'PUT /api/assets/:assetId/ownerships/:ownershipId': 'Update ownership',
-        'DELETE /api/assets/:assetId/ownerships/:ownershipId': 'Delete ownership',
+        'DELETE /api/assets/:assetId/ownerships/:ownershipId':
+          'Delete ownership',
       },
       deals: {
-        'GET /api/deals': 'List analyzed potential deals (each with metrics)',
-        'GET /api/deals/:id': 'Get a single potential deal + metrics',
-        'POST /api/deals': 'Create and analyze potential deal (body: name, assetType, purchasePrice, equityAmount, loanAmount?, interestRate?, holdYears?, expectedRent?, expectedOccupancy?, operatingExpenses?, location?)',
+        'GET /api/deals':
+          'List analyzed potential deals (each with metrics)',
+        'GET /api/deals/:id':
+          'Get a single potential deal + metrics',
+        'POST /api/deals':
+          'Create and analyze potential deal (body: name, assetType, purchasePrice, equityAmount, loanAmount?, interestRate?, holdYears?, expectedRent?, expectedOccupancy?, operatingExpenses?, location?)',
       },
       transactions: {
-        'GET /api/transactions': 'List all transactions (query: ?assetId= to filter)',
+        'GET /api/transactions':
+          'List all transactions (query: ?assetId= to filter)',
         'GET /api/transactions/:id': 'Get one transaction',
-        'POST /api/transactions': 'Create transaction (body: assetId, type, amount, date?, description?)',
+        'POST /api/transactions':
+          'Create transaction (body: assetId, type, amount, date?, description?)',
         'PUT /api/transactions/:id': 'Update transaction',
         'DELETE /api/transactions/:id': 'Delete transaction',
       },
       upload: {
-        'POST /api/upload': 'Upload file (multipart file; returns { url, id, name, path, uploadedAt })',
+        'POST /api/upload':
+          'Upload file (multipart file; returns { url, id, name, path, uploadedAt })',
       },
       geocode: {
-        'POST /api/geocode': 'Geocode address via server-side cache (body: query)',
+        'POST /api/geocode':
+          'Geocode address via server-side cache (body: query)',
       },
       alerts: {
-        'GET /api/alerts': 'List alerts for current user (lease expiries and possible payment delays)',
+        'GET /api/alerts':
+          'List alerts for current user (lease expiries and possible payment delays)',
       },
       bankAccounts: {
-        'GET /api/bank-accounts': 'List bank accounts (query: ?assetId= to filter, scoped by current user)',
-        'POST /api/bank-accounts': 'Create bank account (body: assetId?, bankName?, accountName?, accountRef?, currency?)',
+        'GET /api/bank-accounts':
+          'List bank accounts (query: ?assetId= to filter, scoped by current user)',
+        'POST /api/bank-accounts':
+          'Create bank account (body: assetId?, bankName?, accountName?, accountRef?, currency?)',
         'DELETE /api/bank-accounts/:id': 'Delete bank account',
       },
     },
