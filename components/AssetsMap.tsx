@@ -138,9 +138,8 @@ export const AssetsMap: React.FC<AssetsMapProps> = ({ properties, onSelectProper
 
   const center = useMemo<[number, number]>(() => {
     if (!points.length) return [31.7683, 35.2137];
-    const lat = points.reduce((sum, p) => sum + p.lat, 0) / points.length;
-    const lon = points.reduce((sum, p) => sum + p.lon, 0) / points.length;
-    return [lat, lon];
+    const first = points[0];
+    return [first.lat, first.lon];
   }, [points]);
 
   const propertyById = useMemo(() => {
